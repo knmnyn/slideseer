@@ -3,7 +3,10 @@ project should be kept here and linked to from the TiddlyWiki.
 
 
 bin/		- scripts
+
 cache/		- cached google searches
+
 lib/		- library files
+
 README.html	- this file
 
