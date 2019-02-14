@@ -1,0 +1,200 @@
+#!/usr/local/bin/perl
+# -*- cperl -*-
+=head1 NAME
+
+ googleAPIsearch2tsv
+
+=head1 SYNOPSYS
+
+ RCS:$Id: googleAPIsearch2tsv,v 1.2 2003/05/30 12:01:36 rpnlpir Exp rpnlpir $
+
+=head1 DESCRIPTION
+
+ Descended from:
+
+ GoogleSearch.pl
+ 11apr2002 - matt@interconnected.org http://interconnected.org/home/
+ Demonstrates use of the doGoogleSearch method on the Google API.
+ See http://www.google.com/apis/ to get your key and download the WSDL
+ (which this script expects to find in its directory).
+
+=head1 HISTORY
+
+ ORIGIN: created from templateApp.pl version 3.4 by Min-Yen Kan <kanmy@comp.nus.edu.sg>
+
+ RCS:$Log: googleAPIsearch2tsv,v $
+ RCS:Revision 1.2  2003/05/30 12:01:36  rpnlpir
+ RCS:Fixed to handle window sizes greater than 10.
+ RCS:
+ RCS:Revision 1.1  2003/05/29 09:33:47  rpnlpir
+ RCS:Initial revision
+ RCS:
+
+=cut
+require 5.0;
+use SOAP::Lite;
+use Getopt::Std;
+
+### USER customizable section
+my $tmpfile .= $0; $tmpfile =~ s/[\.\/]//g;
+$tmpfile .= $$ . time;
+if ($tmpfile =~ /^([-\@\w.]+)$/) { $tmpfile = $1; }		      # untaint tmpfile variable
+$tmpfile = "/tmp/" . $tmpfile;
+$0 =~ /([^\/]+)$/; my $progname = $1;
+my $outputVersion = "1.1";
+
+my $basedir = "/home/min/slideseer/";
+my $defaultHits = 1;
+my $defaultKey='k+ZecvNQFHIHTvmyQLMI/fjwgVU8gcYt'; # default key (KAN Min-Yen's)
+my $defaultQuery = "google api";	# either type on the command line,
+					# or it defaults to 'google api'
+
+my $windowSize = 10;			# defined by Google API
+### END user customizable section
+
+### Ctrl-C handler
+sub quitHandler {
+  print STDERR "\n# $progname fatal\t\tReceived a 'SIGINT'\n# $progname - exiting cleanly\n";
+  exit;
+}
+
+### HELP Sub-procedure
+sub Help {
+  print STDERR "usage: $progname -h\t\t\t\t[invokes help]\n";
+  print STDERR "       $progname -v\t\t\t\t[invokes version]\n";
+  print STDERR "       $progname [-q] [-k <key>] [-Q <query>] [-n <num>]\n";
+  print STDERR "Options:\n";
+  print STDERR "\t-q\tQuiet Mode (don't echo license)\n";
+  print STDERR "\t-k <key>\tUse GoogleAPI key <key>\n";
+  print STDERR "\t-Q <query>\tUse query <query> (default: $defaultQuery)\n";
+  print STDERR "\t-n <num>\tRetrieve <n> hits (default: $defaultHits)\n";
+  print STDERR "\n";
+}
+
+### VERSION Sub-procedure
+sub Version {
+  if (system ("perldoc $0")) {
+    die "Need \"perldoc\" in PATH to print version information";
+  }
+  exit;
+}
+
+sub License {
+  print STDERR "# Copyright 2003 \251 by Min-Yen Kan\n";
+}
+
+###
+### MAIN program
+###
+
+my $cmdLine = $0 . " " . join (" ", @ARGV);
+if ($#ARGV == -1) { 		        # invoked with no arguments, possible error in execution? 
+  print STDERR "# $progname info\t\tNo arguments detected, waiting for input on command line.\n";  
+  print STDERR "# $progname info\t\tIf you need help, stop this program and reinvoke with \"-h\".\n";
+}
+
+$SIG{'INT'} = 'quitHandler';
+getopts ('hk:qQ:n:v');
+
+# use (!defined $opt_X) for options with arguments
+if (!$opt_q) { License(); }		# call License, if asked for
+if ($opt_v) { Version(); exit(0); }	# call Version, if asked for
+if ($opt_h) { Help(); exit (0); }	# call help, if asked for
+my $key = (!defined $opt_k) ? $defaultKey : $opt_k;
+my $query = (!defined $opt_Q) ? $defaultQuery : $opt_Q;
+my $hits = (!defined $opt_n) ? $defaultHits : $opt_n;
+
+my $numLeft = $hits;
+my $offset = 0;
+# Redefine how the default deserializer handles booleans.
+# Workaround because the 1999 schema implementation incorrectly doesn't
+# accept "true" and "false" for boolean values.
+# See http://groups.yahoo.com/group/soaplite/message/895
+# *SOAP::XMLSchema1999::Deserializer::as_boolean =
+#    *SOAP::XMLSchemaSOAP1_1::Deserializer::as_boolean = 
+#    \&SOAP::XMLSchema2001::Deserializer::as_boolean;
+
+printHeader();
+
+my $numResults;
+while ($numLeft > 0) {
+  $numResults = ($windowSize < $numLeft) ? $windowSize : $numLeft;
+  # Initialise with local SOAP::Lite file
+  my $service = SOAP::Lite
+    -> service("file:/$basedir/lib/GoogleSearch.wsdl");
+  my $result = $service
+    -> doGoogleSearch(
+		      $key,		# key
+		      xml_clean($query),# search query
+		      $offset,		# start results
+		      $numResults,	# max results
+		      "false",		# filter: boolean
+		      "",		# restrict (string)
+		      "false",		# safeSearch: boolean
+		      "",		# lr
+		      "latin1",		# ie
+		      "latin1"		# oe
+		     );
+
+# $result is hash of the return structure. Each result is an element in the
+# array keyed by 'resultElements'. See the WSDL for more details.
+
+  if(defined($result->{resultElements})) {
+    my $numberActual = $result->{'estimatedTotalResultsCount'};
+    for (my $i = 0; $i < $numberActual && $i < $numResults; $i++) {
+      print ($i+1+$offset);
+      print "\t";
+      print
+	  $result->{resultElements}->[$i]->{URL}, "\t",
+	  $result->{resultElements}->[$i]->{title}, "\t",
+	  $result->{resultElements}->[$i]->{summary}, "\t",
+	  $result->{resultElements}->[$i]->{snippet}, "\t",
+	  $result->{resultElements}->[$i]->{cachedSize}, "\t",
+	  $result->{resultElements}->[$i]->{hostName}, "\t",
+	  $result->{resultElements}->[$i]->{directoryTitle}, "\t",
+	  $result->{resultElements}->[$i]->{directoryCategory}->{fullViewableName}, "\n";
+    }
+  }
+
+  $numLeft -= $windowSize;
+  $offset += $windowSize;
+}
+
+
+###
+### END of main program
+###
+
+# cleans up strings for XML
+sub xml_clean {
+  my $text = shift;
+
+    $text =~ s/\&/\&amp;/g;
+    $text =~ s/</\&lt;/g;
+    $text =~ s/>/\&gt;/g;
+    $text =~ s/\"/\&quot;/g;
+    $text =~ s/\'/\&apos;/g;
+
+    return $text;
+}
+
+# nb:
+# - The two booleans in the search above must be "false" or "true" (not 1 or
+#   0). Previously this script used 'SOAP::Data->type(boolean => "false")'
+#   which came out as '0' in the SOAP message, but wasn't understood by the
+#   Google interface.
+# - I understand that the Schema definition workaround above isn't needed if
+#   you're using SOAP::Lite 0.52 or above. I've been using 0.51.
+
+# nb 19apr2002:
+# - Chris Nandor pointed out that the query needs escaping. I've put a very
+#   simplistic xml_clean sub in to do that, although you should really use
+#   the xml_escape function from XML::Parser.
+
+sub printHeader {
+  print "# googleAPIsearch2tsv file format $outputVersion produced by $progname\n";
+  print "# run as \"$cmdLine\"\n";
+  print "# on " . localtime(time) . "\n";
+  print "# format: URL \\t title \\t summary \\t snippet \\t cachedSize \\t hostName \\t directoryTitle \\t directoryCategory\n";
+}
+

@@ -1,0 +1,351 @@
+#!/specproj2/rpnlpir/tools/languages/programming/perl/bin/perl
+# -*- cperl -*-
+=head1 NAME
+
+ googleFetch
+
+=head1 SYNOPSYS
+
+ RCS:$Id: googleFetch,v 1.6 2003/06/05 12:11:57 rpnlpir Exp rpnlpir $
+
+=head1 DESCRIPTION
+
+NOTE: Main frame decision needs some work still!
+ 
+=head1 HISTORY
+
+ ORIGIN: created from templateApp.pl version 3.4 by Min-Yen Kan <kanmy@comp.nus.edu.sg>
+
+ RCS:$Log: googleFetch,v $
+ RCS:Revision 1.6  2003/06/05 12:11:57  rpnlpir
+ RCS:Fixed more frame URL troubles.
+ RCS:
+ RCS:Revision 1.5  2003/06/05 11:10:06  rpnlpir
+ RCS:Operationalized frame swapping and copying renaming routines.
+ RCS:
+ RCS:Revision 1.4  2003/06/05 10:42:16  rpnlpir
+ RCS:Correct case sensitivity (off) for frame detection
+ RCS:
+ RCS:Revision 1.3  2003/05/30 04:41:52  rpnlpir
+ RCS:Main Frame Detection version 1 working.
+ RCS:
+ RCS:Revision 1.2  2003/05/29 10:27:01  rpnlpir
+ RCS:Frame retrieval functionality partway.
+ RCS:
+ RCS:Revision 1.1  2003/05/29 09:48:12  rpnlpir
+ RCS:Initial revision
+ RCS:
+
+=cut
+
+require 5.0;
+use Getopt::Std;
+# use strict 'vars';
+# use diagnostics;
+
+### USER customizable section
+my $tmpfile .= $0; $tmpfile =~ s/[\.\/]//g;
+$tmpfile .= $$ . time;
+if ($tmpfile =~ /^([-\@\w.]+)$/) { $tmpfile = $1; }		      # untaint tmpfile variable
+$tmpfile = "/tmp/" . $tmpfile;
+$0 =~ /([^\/]+)$/; my $progname = $1;
+my $outputVersion = "1.0";
+
+my $baseDir = "/home/min/slideseer/
+my $googleAPIsearch2tsvLoc = "$baseDir/bin/googleAPIsearch2tsv";
+my $wgetLoc = "/usr/bin/wget";
+my $defaultExtension = "html";
+my $defaultHits = 1;
+my $defaultKey='k+ZecvNQFHIHTvmyQLMI/fjwgVU8gcYt'; # default key (KAN Min-Yen's)
+my $defaultQuery = "google api";	# either type on the command line,
+
+my $RELATIVE = \1;
+my $ABSOLUTE = \2;
+my $URL = \3;
+my $PROGRESS_DOCUMENT_NUMBER = 10;
+### END user customizable section
+
+### Ctrl-C handler
+sub quitHandler {
+  print STDERR "\n# $progname fatal\t\tReceived a 'SIGINT'\n# $progname - exiting cleanly\n";
+  exit;
+}
+
+### HELP Sub-procedure
+sub Help {
+  print STDERR "usage: $progname -h\t\t\t\t[invokes help]\n";
+  print STDERR "       $progname -v\t\t\t\t[invokes version]\n";
+  print STDERR "       $progname -F [-dqt] [-k <key>] [-Q <query>] [-n <num>]\n";
+  print STDERR "       $progname [-dqft] [-k <key>] [-Q <query>] [-n <num>]\n";
+  print STDERR "Options:\n";
+  print STDERR "\t-d\tDebug Mode\n";
+  print STDERR "\t-q\tQuiet Mode (don't echo license)\n";
+  print STDERR "\t-F\tDon't try to get parts of frame documents\n";
+  print STDERR "\t-f\tSwap main content frame with frame document\n";
+  print STDERR "\t-Q <query>\tUse query <query>\n";
+  print STDERR "\t-n <num>\tRetrieve <n> hits\n";
+  print STDERR "\t-k <key>\tUse GoogleAPI key <key>\n";
+  print STDERR "\t-t\tKeep temporary file, renamed with <query>Index.tsv\n";
+  print STDERR "\n";
+  print STDERR "Will accept input on STDIN as a single file.\n";
+  print STDERR "\n";
+}
+
+### VERSION Sub-procedure
+sub Version {
+  if (system ("perldoc $0")) {
+    die "Need \"perldoc\" in PATH to print version information";
+  }
+  exit;
+}
+
+sub License {
+  print STDERR "# Copyright 2003 \251 by Min-Yen Kan\n";
+}
+
+###
+### MAIN program
+###
+
+my $cmdLine = $0 . " " . join (" ", @ARGV);
+if ($#ARGV == -1) { 		        # invoked with no arguments, possible error in execution? 
+  Help (); exit 0;
+}
+
+$SIG{'INT'} = 'quitHandler';
+getopts ('dfFhk:qQ:n:tv');
+
+# use (!defined $opt_X) for options with arguments
+if (!$opt_q) { License(); }		# call License, if asked for
+if ($opt_v) { Version(); exit(0); }	# call Version, if asked for
+if ($opt_h) { Help(); exit (0); }	# call help, if asked for
+my $key = (!defined $opt_k) ? $defaultKey : $opt_k;
+my $query = (!defined $opt_Q) ? $defaultQuery : $opt_Q;
+my $hits = (!defined $opt_n) ? $defaultHits : $opt_n;
+
+my $modifiedQuery = $query;
+$modifiedQuery =~ s/\W+/_/g;
+
+## 1. Do the googleAPIsearch2tsv
+my $indexfile;
+if ($opt_t) {
+  # keep tsv file around
+  $filename = $modifiedQuery;
+  $filename .= "Index.tsv";
+  `$googleAPIsearch2tsvLoc -qQ \"$query\" -n $hits -k $key > $filename`;
+  $indexfile = $filename;
+} else {
+  `$googleAPIsearch2tsvLoc -qQ \"$query\" -n $hits -k $key > $tmpfile`;
+  $indexfile = $tmpfile;
+}
+
+## 2. wget each file and save it
+if (!(-e $indexfile)) { die "# $progname crash\t\tFile \"$indexfile\" doesn't exist"; }
+open (IF, $indexfile) || die "# $progname crash\t\tCan't open \"$indexfile\"";
+my $fh = "IF";
+
+my $number = 0;
+while (<$fh>) {
+  if (/^\#/) { next; }			# skip comments
+  elsif (/^\s+$/) { next; }		# skip blank lines
+  else {
+    $number++;
+    (undef, my $url, undef) = split (/\t/, $_);
+
+    my $extension = getURLextension($url);
+    $fetchedDocument = "$modifiedQuery.$number.$extension";
+    downloadURL($url,$fetchedDocument);
+
+    # examine and download frames if possible
+    if (!$opt_F) {
+      doFrameDoc($url, $fetchedDocument, $modifiedQuery, $number);
+    }
+    if (!$opt_q && $number % $PROGRESS_DOCUMENT_NUMBER == 0) { print STDERR "[$number/$hits]"; }
+  }
+}
+close (IF);
+if (!$opt_q) { print STDERR "\n"; }
+
+if (!$opt_t) {				# remove temporary file if not called to preserve the index file
+  `rm $tmpfile`;
+}
+
+###
+### END of main program
+###
+
+# returns extension of URL, defaults to defaultExtension
+sub getURLextension {
+  my $arg = pop @_;
+  if ($arg =~ /\.([^\/]+)$/) {
+    my $candidate = $1;
+    $candidate =~ s/\?.+//g;		# rid .CGI arguments
+    return $candidate;
+  } else { return $defaultExtension; }
+}
+
+# reports whether a URL is relative or absolute
+sub isRelativeAbsoluteOrHTTP {
+  my $arg = pop @_;
+  if ($arg =~ /\:\/\//) {
+    return $URL;
+  } elsif ($arg =~ /^\//) { 
+    return $ABSOLUTE;
+  } else { return $RELATIVE; }
+}
+
+# performs processing on a frameset document
+sub doFrameDoc {
+  my $documentURL = shift @_;
+  my $fetchedDocument = shift @_;
+  my $baseFilename = shift @_;
+  my $fileNum = shift @_;
+  my $counter = 1;
+
+  my @frameFilenames;
+  open (IF2, $fetchedDocument) || die "# $progname crash\t\tCan't open newly-fetched document \"$fetchedDocument\"";
+
+  my $line = "";
+  while (<IF2>) {			# Gather file into one big line
+    chop;
+    $line .= $_;
+  } 
+  close (IF2);
+
+  my $hasFrame = 0;
+  while ($line =~ /\<frame [^\>]*src\=\"?([^\" \>]+)\"?/i) { #"
+    $hasFrame = 1;
+    my $frameURL = $1;
+    $line = $';				# hack $line to continue from matched spot
+    
+    # check whether URL absolute or relative or a fully-formed URL
+    my $urlType = isRelativeAbsoluteOrHTTP($frameURL);
+    if ($urlType == $RELATIVE) {	# if relative, add base URL
+      my $baseURL = $documentURL; 
+      if ($baseURL =~ /\/$/) { ; }	# already ends in "/"
+      else { 
+	$baseURL =~ /\/[^\/]+$/;
+	$baseURL = $` . "/";
+      }
+      $frameURL = $baseURL . $frameURL;
+    } elsif ($urlType == $URL) {
+      ;				# do nothing
+    } else {
+      $documentURL =~ /^(.+\:\/\/[0-9A-Za-z_\.]+)\//;
+      $frameURL = $1 . $frameURL;	# absolute URL, add host and access method
+    }
+    
+    # retrieve frameURL
+    my $extension = getURLextension($frameURL);
+    my $frameFilename = $baseFilename . ".$fileNum.frame.$counter.$extension";
+    if ($opt_d) { print STDERR "frame file: $frameURL $frameFilename\n"; }
+    downloadURL($frameURL, $frameFilename);
+    push (@frameFilenames, $frameFilename);
+    $counter++;
+  }
+  undef $line;				# reclaim some memory from copy of file
+
+  if ($hasFrame == 1) {
+    my $mainFrame = -1;
+    findMainFrame(\@frameFilenames, \$mainFrame);
+    if ($mainFrame != -1) {
+      if ($opt_d) { print STDERR "doing $frameFilenames[$mainFrame]\n"; }
+      renameMainFrame($frameFilenames[$mainFrame], $fetchedDocument, $baseFilename, $fileNum);
+    } else {
+      if ($opt_d) { print STDERR "keeping frameset as main document\n"; }
+    }
+  }
+}
+
+# fetches a document
+sub downloadURL {
+  my $URL = shift @_;
+  my $filename = shift @_;
+  if ($opt_d) { print "Downloading $URL $filename\n"; }
+  `$wgetLoc -qO $filename $URL`;
+}
+
+sub findMainFrame {
+  my $frameFilenamesRef = shift @_;
+  my $mainFrameRef = shift @_;
+  my @frameFilenames = @{$frameFilenamesRef};
+
+  my $maxWords = -1;			# initialize variables
+  my $maxWordsFrame = -1;
+  my $maxTextTagsFrame = -1;
+  my $maxTextTags = -1;
+
+  # acculmulate features
+  for (my $i = 0; $i <= $#frameFilenames; $i++) {
+    my $numWords = 0;
+    my $numImages = 0;
+    my $numTextTags = 0;
+    countFeatures ($frameFilenames[$i],
+		   \$numWords, \$numImages, \$numTextTags);
+
+    if ($opt_d) { 
+      print STDERR "  $i. $frameFilenames[$i] -> $numWords, $numImages, $numTextTags\n";
+    }
+    # update maximums if necessary
+    if ($maxTextTags < $numTextTags) {
+      $maxTextTags = $numTextTags;
+      $maxTextTagsFrame = $i;
+    }
+    if ($maxWords < $numWords) {
+      $maxWords = $numWords;
+      $maxWordsFrame = $i;
+    }
+  }
+
+  # BUG: currently choice is not very sophisticated
+  if ($maxWordsFrame == $maxTextTagsFrame &&
+      $maxWordsFrame != -1) {
+    $$mainFrameRef = $maxWordsFrame;
+  } else {
+    $$mainFrameRef = $maxWordsFrame;
+  }
+}
+
+sub countFeatures {
+  my $filename = shift @_;
+  my $numWordsRef = shift @_;
+  my $numImagesRef = shift @_;
+  my $numTextTagsRef = shift @_;
+  my $buf = "";
+
+  open (IF3, $filename) || die "# $progname crash\t\tCan't open document \"$filename\"";
+  # get buffer into one big line
+  while (<IF3>) {
+    chop;
+    $buf .= $_;
+  }
+  close (IF3);
+
+  my $noTags = $buf;			# assemble stream with only text
+  $noTags =~ s/\<[^\>]+\>//g;
+
+  my $onlyTags = $buf;			# assemble stream with only tags
+  $onlyTags =~ s/\>[^\<]+\</></g;
+
+  $$numWordsRef = scalar (split (/ /, $noTags));
+  while ($onlyTags =~ /img src/ig) { $$numImagesRef++; }
+  while ($onlyTags =~ /\<(p|h\d|em|b|i|u)\>/ig) { $$numTextTagsRef++; }
+}
+
+sub renameMainFrame {
+  my $filename = shift @_;		# the content frame source file
+  my $mainFrame = shift @_;
+  my $baseFilename = shift @_;
+  my $fileNum = shift @_;
+
+  $filename =~ /.([^\.]+)$/;
+  my $extension = $1;
+  my $contentFrameFilename = "$baseFilename.$fileNum.frame.content.$extension";
+  my $framesetFilename = "$baseFilename.$fileNum.frameset.$defaultExtension";
+  if ($opt_f) {				# swap frame
+    `cp $mainFrame $framesetFilename; cp $filename $mainFrame`;
+    # print "cp $mainFrame $framesetFilename; cp $filename $mainFrame\n";
+  } else {				# just copy
+    `cp $filename $contentFrameFilename`;
+  }
+}

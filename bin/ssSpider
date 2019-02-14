@@ -1,0 +1,453 @@
+#!/usr/local/bin/perl -w
+# -*- cperl -*-
+=head1 NAME
+
+ssSpider
+
+=head1 SYNOPSYS
+
+ RCS:$Id: ssSpider,v 1.4 2006/05/23 15:06:37 min Exp min $
+
+=head1 DESCRIPTION
+
+=head1 HISTORY
+
+ ORIGIN: created from templateApp.pl version 3.4 by Min-Yen Kan <kanmy@comp.nus.edu.sg>
+
+ RCS:$Log: ssSpider,v $
+ RCS:Revision 1.4  2006/05/23 15:06:37  min
+ RCS:Fixed up jaccard similarity reporting.
+ RCS:
+ RCS:Revision 1.3  2006/05/23 10:45:31  min
+ RCS:Added IDF calculations for title, author.  Added abstract into shortinfo.
+ RCS:
+ RCS:Revision 1.2  2006/05/23 09:43:28  min
+ RCS:cache read/write working.
+ RCS:
+ RCS:Revision 1.1  2006/05/18 09:57:27  min
+ RCS:Initial revision
+ RCS:
+
+=cut
+
+require 5.0;
+use Getopt::Std;
+use strict 'vars';
+# use diagnostics;
+
+### USER customizable section
+my $tmpfile .= $0; $tmpfile =~ s/[\.\/]//g;
+$tmpfile .= $$ . time;
+if ($tmpfile =~ /^([-\@\w.]+)$/) { $tmpfile = $1; }		      # untaint tmpfile variable
+$tmpfile = "/tmp/" . $tmpfile;
+$0 =~ /([^\/]+)$/; my $progname = $1;
+my $outputVersion = "1.0";
+my $baseDir = "/home/min/slideseer";
+my $defaultCSdumpTSV = "$baseDir/lib/citeseerMetadata.tsv";
+my $googleAPIsearch2tsv = "$baseDir/bin/googleAPIsearch2tsv";
+my $cacheDir = "/home/min/slideseer/cache/";
+my $cacheExpiry = -1;				       # never expires
+### END user customizable section
+
+### Ctrl-C handler
+sub quitHandler {
+  print STDERR "\n# $progname fatal\t\tReceived a 'SIGINT'\n# $progname - exiting cleanly\n";
+  exit;
+}
+
+### HELP Sub-procedure
+sub Help {
+  print STDERR "usage: $progname -h\t\t\t\t[invokes help]\n";
+  print STDERR "       $progname -v\t\t\t\t[invokes version]\n";
+  print STDERR "       $progname [-qi] filename(s)...\n";
+  print STDERR "Options:\n";
+  print STDERR "\t-c\tInteractive Mode\n";
+  print STDERR "\t-i\tUse a different CiteSeer dump (default: $defaultCSdumpTSV)\n";
+  print STDERR "\t-q\tQuiet Mode (don't echo license)\n";
+  print STDERR "\n";
+  print STDERR "Will accept input on STDIN as a single file.\n";
+  print STDERR "\n";
+}
+
+### VERSION Sub-procedure
+sub Version {
+  if (system ("perldoc $0")) {
+    die "Need \"perldoc\" in PATH to print version information";
+  }
+  exit;
+}
+
+sub License {
+  print STDERR "# Copyright 2005 \251 by Min-Yen Kan\n";
+}
+
+###
+### MAIN program
+###
+
+my $cmdLine = $0 . " " . join (" ", @ARGV);
+if ($#ARGV == -1) { 		        # invoked with no arguments, possible error in execution? 
+  print STDERR "# $progname info\t\tNo arguments detected, waiting for input on command line.\n";  
+  print STDERR "# $progname info\t\tIf you need help, stop this program and reinvoke with \"-h\".\n";
+}
+
+$SIG{'INT'} = 'quitHandler';
+getopts ('ic:hqv');
+
+our ($opt_c, $opt_i, $opt_q, $opt_v, $opt_h);
+# use (!defined $opt_X) for options with arguments
+if (!$opt_q) { License(); }		# call License, if asked for
+if ($opt_v) { Version(); exit(0); }	# call Version, if asked for
+if ($opt_h) { Help(); exit (0); }	# call help, if asked for
+my $csDumpTSV = (!defined $opt_c) ? $defaultCSdumpTSV : $opt_c;
+
+my (@title, @author, @url, @abstract, @hits, @jaccard);
+my (%hTitle, %hAuthor, %hAbstract, %hURL);		# token hashes
+my ($low, $high) = (0, -1);
+
+if ($opt_i) { ($low,$high) = split (/\-/,shift); }
+
+# load citeseer dump
+my $numDocLoaded = &loadCSdump($csDumpTSV,$low, $high);
+my $logNumDocLoaded = log($numDocLoaded);
+
+my $did = 1;
+
+if ($opt_i) {
+  for (my $i = 0; $i < $numDocLoaded; $i++) {
+    $did = $i + $low + 1;
+    &runSearch("filetype:ppt $title[$did]", 10, 0, "title/$did.10");
+    undef @jaccard;
+    &calcJaccard($did, 1, .2);
+  }
+} else { 
+  &interactive(); 
+}
+
+###
+### END of main program
+###
+
+# loads data from CiteSeer dump into main memory
+sub loadCSdump {
+  my $tsv = shift;
+  my $low = shift;
+  my $high = shift;
+
+  my $line = 0;
+  my $readLines = 0;
+  # load csDump
+  open (IF, $tsv) || die "$progname fatal\t\tCan't open \"$tsv\"!";
+  while (<IF>) {
+    if (/^\#/) { next; }					    # skip comments
+    else {
+
+      if ($low > $line) { 
+	$line++; 
+	next; 
+      }
+
+      my @fields = split (/\t/);
+      my $id = $fields[0];
+      $title[$id] = $fields[2];					    # title field 2
+      $fields[2] = lc($fields[2]);
+      my @tokens = split(/([ :\,\!\.\?]+|ZZZ)/, $fields[2]);
+      foreach my $w (@tokens) {
+	$hTitle{$w}{$id}++;
+      }
+
+      $author[$id] = $fields[1];
+      $fields[1] = lc($fields[1]);
+      @tokens = split(/([ :\,\!\.\?]+|ZZZ)/, $fields[1]);
+      foreach my $w (@tokens) {
+	$hAuthor{$w}{$id}++;
+      }
+
+      $url[$id] = $fields[4];
+      $fields[4] = lc($fields[4]);
+      @tokens = split(/([ :\,\!\.\?\/]+|ZZZ)/, $fields[4]);
+      foreach my $w (@tokens) {
+	$hURL{$w}{$id}++;
+      }
+
+      $abstract[$id] = $fields[6];
+      $fields[6] = lc($fields[6]);
+      @tokens = split(/([ :\,\!\.\?\/]+|ZZZ)/, $fields[6]);
+      foreach my $w (@tokens) {
+	$hAbstract{$w}{$id}++;
+      }
+      
+      $readLines++;
+    }
+    $line++;
+    if ($line % 1000 == 0) { print STDERR "[$line]"; }
+    if ($high < $line) { last; }
+  }
+  close (IF);
+  print STDERR "...done\n";
+  return $readLines;
+}
+
+sub interactive {
+  print STDERR $0 . "> ";
+  my @arg;
+  while (<STDIN>) {
+    print STDERR $0 . "> ";
+    chomp;
+    undef @arg;
+    @arg = split (/\t/,$_);
+    if (!defined $arg[0]) { next; }
+    if ($arg[0] eq "exit" || $arg[0] eq "quit" || $arg[0] eq "q") { exit; }
+    elsif ($arg[0] eq "h" || $arg[0] eq "help" ||$arg[0] eq "?") {  # help mode
+      print <<END;
+$0 HELP FOR INTERACTIVE MODE
+
+all commands and arguments are separated by tabs
+
+i	change did and do shortinfo on range arg1 to arg2
+g[at]	run google query on author or title with filetype:ppt restrictor
+g	run google query with filetype:ppt restrictor
+j	calculate Jaccard similarity of hits (optionally, against arg1)
+k[at]	keyword search author and title
+	arg1 keyword	arg2 #hits
+
+h	this help screen
+help
+?
+
+q	exit interactive mode
+quit
+exit
+END
+    } elsif ($arg[0] eq "i" || $arg[0] eq "id") {		    # change index to number or range
+      if (!defined $arg[1]) { print STDERR "$0 error\t\tNeed an document id as arg1!\n"; next; }
+      print STDERR "changing to document id $arg[1]\n";
+      if (defined $arg[2]) { 
+	if ($arg[2] < $arg[1]) { my $tmp = $arg[1]; $arg[1] = $arg[2]; $arg[2] = $tmp; } # swap
+      } else {
+	$arg[2] = (!defined $arg[2]) ? $arg[1] : $arg[2];
+      }
+      
+      for ($did = $arg[1]; $did <= $arg[2]; $did++) { &shortInfo($did); }
+      $did--;
+    } elsif ($arg[0] eq "gt" || $arg[0] eq "googleTitle") {		    # send title to googleAPItsv
+      &runSearch("filetype:ppt $title[$did]", 10, 1, "title/$did.10");
+    } elsif ($arg[0] eq "ga" || $arg[0] eq "googleAuthor") {		    # send author to googleAPItsv
+      &runSearch("filetype:ppt $author[$did]", 10, 1, "author/$did.10");
+    } elsif ($arg[0] eq "g" || $arg[0] eq "google") {		    # send query to googleAPItsv
+      if (!defined $arg[1]) { print STDERR "$0 error\t\tNeed keywords as arg1!\n"; next; }
+      &runSearch("filetype:ppt $arg[1]", 10, 1, "query/$arg[1].10");
+    } elsif ($arg[0] eq "j" || $arg[0] eq "jaccard") {		    # send query to googleAPItsv
+      &calcJaccard($did, 1);
+    } elsif ($arg[0] eq "ka") {					    # search for keyword in author
+      if (!defined $arg[1]) { print STDERR "$0 error\t\tNeed a keyword as arg1!\n"; next; }
+      $arg[1] = lc ($arg[1]);
+      my $line = 0;
+      my $idf  = &calcIDF($arg[1], \%hAuthor);
+      print STDERR "$arg[1] idf:$idf\n";
+      foreach my $docid (sort {$hAuthor{$arg[1]}{$b} <=> $hAuthor{$arg[1]}{$a}} keys %{$hAuthor{$arg[1]}}) {
+	$line++;
+	print STDERR "$hAuthor{$arg[1]}{$docid}:";
+	&shortInfo ($docid); 
+	if (defined $arg[2] && $line >= $arg[2]) { last; }
+      }
+    } elsif ($arg[0] eq "kt") {					    # search for keyword in title
+      if (!defined $arg[1]) { print STDERR "$0 error\t\tNeed a keyword as arg1!\n"; next; }
+      $arg[1] = lc ($arg[1]);
+      my $line = 0;
+      my $idf  = &calcIDF($arg[1], \%hTitle);
+      print STDERR "$arg[1] idf:$idf\n";
+      foreach my $docid (sort {$hTitle{$arg[1]}{$b} <=> $hTitle{$arg[1]}{$a}} keys %{$hTitle{$arg[1]}}) {
+	$line++;
+	print STDERR "$hTitle{$arg[1]}{$docid}:";
+	&shortInfo ($docid); 
+	if (defined $arg[2] && $line >= $arg[2]) { last; }
+      }
+    } elsif ($arg[0] eq "all" || $arg[0] eq "a") {		    # run all 
+      if (!defined $arg[1]) { print STDERR "$0 error\t\tNeed a did as arg1!\n"; next; }
+      my $did = $arg[1];
+      &shortInfo ($did); 
+      &runSearch("filetype:ppt $title[$did]", (defined $arg[2]) ? $arg[2] : 10, 1, "title/$did.10");
+      &calcJaccard($did, 1, 0);
+    } else {
+      print STDERR "unknown command.\n";
+    }
+    print STDERR $0 . "> ";
+  }
+}
+
+# searches google if recent cache copy is not found
+sub runSearch {
+  my $query = shift;
+  my $hits = shift;
+  my $debug = shift;
+  my $tag = shift;
+  my $writeToCache = 1;	      # need to write cache file? default: yes
+  my $subDir = ".";
+
+  if ($tag =~ /([^\/]+)\/(.+)/) {
+    $subDir = $1;
+    $tag = $2;
+  } else {
+    print STDERR "$progname warn\t\tProblem with sub directory";
+  }
+  if ($tag =~ /^(\d+)/) { 
+    my $fileNo = $1;
+    my $subsubDir = int($fileNo / 1000);
+    $subDir .= "/$subsubDir/";
+  }
+
+  my $subdir = "$cacheDir/$subDir";
+  if (!-e "$cacheDir/$subDir") { mkdir ("$cacheDir/$subDir", 0775); }
+
+  my $filename = "$cacheDir/$subDir/$tag.tsv";
+
+  if (-e $filename) {	 ############ cache exists check whether fresh
+    if ($cacheExpiry != -1) {
+      my $now = time;
+      my ($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size,
+	  $atime,$mtime,$ctime,$blksize,$blocks) = stat ($filename);
+      my $diff = int ((($now - $mtime) / 3600) / 7);	     # in days
+      if ($diff < $cacheExpiry) { 
+	$writeToCache = 0;			   # cached copy is ok
+	open (IF, "$filename") || die "$progname fatal\t\tCan't read from cache file \"$filename\"!";
+      } else {
+	if ($debug) { print STDERR "$progname info\t\tCached copy is too old -- respidering\n"; }
+      }
+    } else {		     # cache doesn't expire -- open cache file
+      $writeToCache = 0;			   # cached copy is ok
+      if ($debug) { print STDERR "$progname info\t\tReading from cache\n"; }
+      open (IF, "$filename") || die "$progname fatal\t\tCan't read from cache file \"$filename\"!";
+    }
+  }
+
+  if ($writeToCache == 1) {	 ############# not in cache or cache expired fetch from google
+    
+    open (OF, ">$filename") || die "$progname fatal\t\tCan't write to cache file \"$filename\"!";
+    if ($debug) { print STDERR "running [$query]\n"; }
+
+    #  open (IF, "$googleAPIsearch2tsv -q -Q \"$query\" -n $hits 2>/dev/null |") || die "$progname fatal\t\tCan't run search!";
+    open (IF, "$googleAPIsearch2tsv -q -k zGkr3FZQFHJsaqicZQFv2sJRuAG30J2p -Q \"$query\" -n $hits 2>/dev/null |") || die "$progname fatal\t\tCan't run search!";
+    #  open (IF, "$googleAPIsearch2tsv -q -k GnEiWvZQFHL8e6nB4eTeCh4wZ31WBUTG -Q \"$query\" -n $hits 2>/dev/null |") || die "$progname fatal\t\tCan't run search!";
+
+  }			 ################################## end fetch 
+
+  undef @hits;
+  my $numHits = 0;
+  while (<IF>) {
+    if ($writeToCache) { print OF; }
+    if (/^\#/) { next }
+    if ($debug) { print }
+    my @record = split (/\t/,$_);
+    $record[0]--;
+    $hits[$record[0]]{"url"} = $record[1];
+    $hits[$record[0]]{"title"} = &ridHTML($record[2]);
+    $hits[$record[0]]{"snippet"} = &ridHTML($record[4]);
+    $hits[$record[0]]{"hostName"} = $record[6];
+    $numHits++;
+  }
+  if ($writeToCache) { close (OF); }
+  close (IF);
+  if ($debug) { print "[$numHits]\n"; }
+}
+
+### UTILITIES
+
+sub calcJaccard { # calculates simple jaccard similarity -- used as baseline (c.f. calcDeep)
+  my $docid = shift;
+  my $debug = shift;
+  my $threshold = shift;
+
+  # get tokens of pdf document
+  my $str = lc($title[$docid]);
+  my @pdfTokens = split(/[ \:\,\!\.\?]+|ZZZ/, $str);
+  my %tt = ();
+  foreach my $w (@pdfTokens) {
+    $tt{$w}++;
+  }
+
+  for (my $i = 0; $i <= $#hits; $i++) {
+    # get tokens of ppt document
+    my @tokens = split (/[ :\,\!\.\?]+|ZZZ/, lc($hits[$i]{"title"}));
+    my $overlap = 0;
+    foreach my $w (@tokens) {
+      if (defined $tt{$w}) { $overlap++; }
+    }
+
+    my $jaccard = $overlap / ($#tokens + $#pdfTokens + 2 - $overlap);
+    if ($debug && ($jaccard >= $threshold ||
+		   $threshold == -1 || 
+		   $threshold == 0)) {
+      my $denom = $#tokens + $#pdfTokens + 2 - $overlap;
+      print "$docid\t$i\t$jaccard\t$overlap\t$denom\n"; 
+    }
+    $jaccard[$i] = $jaccard;
+  }
+}
+
+sub calcIDF {		      # calculates IDF versus a hash reference
+  my $token = shift;
+  my $hashRef = shift;
+  my %h = %$hashRef; 
+
+  my $numDocs = (scalar (keys %{$h{$token}}) != 0) ? log (scalar (keys %{$h{$token}})) : 0;
+  return ($logNumDocLoaded - $numDocs);
+}
+
+sub calcDeep {				 # calculates in-depth score# 
+  my $docid = shift;
+  my $debug = shift;
+  my $threshold = shift;
+
+  my (%tt, %aut, %ut, %abt) = ((),(),(),());
+
+  my $str = lc($title[$docid]);	# get tokens of title field of pdf document
+  my @pdfTokens = split(/[ \:\,\!\.\?]+|ZZZ/, $str);
+  foreach my $w (@pdfTokens) { $tt{$w}++; }
+  
+  $str = lc($author[$docid]); # get tokens of author field of pdf document
+  @pdfTokens = split(/[ \:\,\!\.\?]+|ZZZ/, $str);
+  foreach my $w (@pdfTokens) { $aut{$w}++; }
+
+  $str = lc($title[$docid]); # get tokens of URL field of pdf document
+  @pdfTokens = split(/[ \:\,\!\.\?]+|ZZZ/, $str);
+  foreach my $w (@pdfTokens) { $ut{$w}++; }
+
+  $str = lc($title[$docid]); # get tokens of abstract field pdf document
+  @pdfTokens = split(/[ \:\,\!\.\?]+|ZZZ/, $str);
+  foreach my $w (@pdfTokens) { $abt{$w}++; }
+
+  for (my $i = 0; $i <= $#hits; $i++) {
+    # get tokens of title field of ppt document
+    my @tokens = split (/[ :\,\!\.\?]+|ZZZ/, lc($hits[$i]{"title"}));
+    my $overlap = 0;
+    foreach my $w (@tokens) { if (defined $tt{$w}) { $overlap++; } }
+    
+    my $jaccard = $overlap / ($#tokens + $#pdfTokens + 2 - $overlap);
+    if ($debug && ($jaccard >= $threshold ||
+		   $threshold == -1 || 
+		   $threshold == 0)) {
+      my $denom = $#tokens + $#pdfTokens + 2 - $overlap;
+      print "$docid\t$i\t$jaccard\t$overlap\t$denom\n"; 
+    }
+    $jaccard[$i] = $jaccard;
+  }
+}
+
+sub shortInfo {
+  my $did = shift;
+  print STDERR "Title($did): $title[$did]\n";
+  print STDERR "Author($did): $author[$did]\n";
+  print STDERR "URL($did): $url[$did]\n";
+  print STDERR "Abstract($did): $abstract[$did]\n";
+}
+
+sub ridHTML {
+  my $arg = shift;
+  $arg =~ s/<[^>]+>//g;
+  $arg =~ s/&amp;/&/g;
+  $arg =~ s/&([a-z])acute;/$1/g;
+  $arg =~ s/&([a-z])grave;/$1/g;
+  return $arg;
+}
+
