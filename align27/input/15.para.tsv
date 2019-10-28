@@ -1,0 +1,338 @@
+0	 Privacy Preserving OLAP  
+1	 Rakesh Agrawal IBM Almaden  
+2	 ragrawal@us.ibm.com Ramakrishnan Srikant IBM Almaden  
+3	 srikant@us.ibm.com Dilys Thomas   
+4	 Stanford University  
+5	 dilys@cs.stanford.edu  
+6	 ABSTRACT  
+7	 We present techniques for privacy-preserving computation of multidimensional aggregates on data partitioned across multiple clients. Data from different clients is perturbed (randomized) in order to preserve privacy before it is integrated at the server. We develop formal notions of privacy obtained from data perturbation and show that our perturbation provides guarantees against privacy breaches.We develop and analyze algorithms for reconstructing counts of subcubes over perturbed data. We also evaluate the tradeoff between privacy guarantees and reconstruction accuracy and show the practicality of our approach.  
+8	 1. INTRODUCTION  
+9	 On-line analytical processing (OLAP) is a key technology employed in business-intelligence systems. The computation of multidimensional aggregates is the essence of on-line analytical processing. We present techniques for computing multidimensional count aggregates in a privacy-preserving way.  
+10	 We consider a setting in which clients C 1 , C 2 , . . . C n are connected to a server S </i>. The server has a table <i>T </i>(<i>A 1 , A 2 , . . . , A m ), where each column A i comes from a numeric domain. Each client C i contributes a row r i (a i 1 , a i 2 , . . . , a i m ) to T . The server runs aggregate queries of the form  
+11	 select count(*) from T where P j 1 and P j 2 . . . and P j k .  
+12	 Here P j i is a range predicate of the form a l i  A j i  a h i , denoted as A j i [a l i , a h i ]. We use count(P j 1  P j 2 . . .  P j k ) to succinctly represent the above aggregate query.  
+13	 We take the randomization approach to preserving privacy. The basic idea is that every client C i perturbs its row r i before sending it to the server S . The randomness used in perturbing the values ensures information-theoretic row-level privacy. Figure 1 gives the  
+14	  Supported in part by NSF Grant ITR-0331640  
+15	 Permission to make digital or hard copies of all or part of this work for personal or classroom use is granted without fee provided that copies are not made or distributed for profit or commercial advantage, and that copies bear this notice and the full citation on the first page. To copy otherwise, to republish, to post on servers or to redistribute to lists, requires prior specific permission and/or a fee. SIGMOD 2005 June 14-16, 2005, Baltimore, Maryland, USA. Copyright 2005 ACM 1-59593-060-4/05/06 $5.00. A1,A2,A3,....An Q1, Q2, Q3,...Qn Translation Module Reconstruction Module Estimated answer  
+16	 Queries on        Aggregate query on original table T     on original table T  
+17	 Answers on perturbed  table T 1  
+18	 Perturbed Table T 1 perturbed table T 1  
+19	 Figure 1: Privacy preserving computation of multidimensional count aggregates.  
+20	 schematic of our approach. S runs queries on the resultant perturbed table T  . The query meant for the original table T is translated into a set of queries on the perturbed table T  . The answers to these queries are then reconstructed to obtain the result to the original query with bounded error. We show that our techniques are safe against privacy breaches.  
+21	 The perturbation algorithm is publicly known; the actual random numbers used in the perturbation, however, are hidden. To allow clients to operate independently, we use local perturbations so that the perturbed value of a data element depends only on its initial value and not on those of the other data elements. Different columns of a row are perturbed independently. We use retention replacement schemes where an element is decided to be retained with probability p or replaced with an element selected from a probability distribution function (p.d.f.) on the domain of elements.  
+22	 The proposed techniques can also be used for database tables in which some of the columns are categorical. They are also applicable in the settings in which the database tables are partitioned horizontally or vertically.  
+23	 The organization of the rest of the paper is as follows. We start off with a discussion of related work in Section 2. Section 3 formally defines the retention replacement perturbation. Section 4 presents the reconstruction algorithms. Section 5 presents the guarantees against privacy breaches offered by our techniques. In Sec 
+24	 tion 6, we discuss how our techniques can be extended to categorical data. We also discuss some additional perturbation techniques and describe how our techniques can be used in data mining by showing how to build a decision tree classifier. Section 7 presents an empirical evaluation of our techniques. We conclude with a summary and directions for future work in Section 8. The proofs of our results have been collected in the Appendix.  
+25	 2. RELATED WORK  
+26	 The techniques for preserving privacy while answering statistical queries developed in the statistical database literature can be classified into query restriction</i>, <i>input perturbation </i>and <i>output perturbation [1]. Both query restriction and output perturbation are applicable when the entire original unperturbed data is available in a single central repository, which is not true in our setting, where clients randomize their data before providing it to the server. Our scenario fits in the framework of input perturbation, where the goal is to create a version of the database that can be publicly released (e.g. census data), yet the individual rows should not be recoverable. Local perturbation for a single column has been studied in [24]. However most previous work (e.g., [20]) assume that during perturbation the entire database is available at a single site, while we require local perturbations at each client.  
+27	 The use of local perturbation techniques to preserve privacy of individual rows while allowing the computation of data mining models at the aggregate level was proposed in [4]. They used an additive perturbation technique, in which a random perturbation is added to the original value of the row, where the perturbation is picked from another probability distribution function (e.g. Gaussian). They showed that it was possible to build accurate decision tree classification models on the perturbed data.  
+28	 However, it is difficult to provide guarantees against privacy breaches when using additive perturbation. For instance, if we add a Gaussian random variable with a mean 0 and variance 20 to age, and for a specific row the randomized value happens to be -60, one can estimate with high confidence that the original value of age was (say) less than 20. Additive schemes are also restricted to numeric data. Finally, the algorithms in [4] reconstruct each column independently. Since OLAP requires queries over multiple columns, it is essential to be able to reconstruct them together.  
+29	 The problem of privacy-preserving association-rule mining was studied in [9, 10, 21]. The randomization schemes used in these works are similar to the retention replacement schemes we consider. However these studies are restricted to boolean data.  
+30	 Formal definitions of privacy breaches were proposed in [9], and an alternate approach to defining privacy guarantees was proposed in [6]. We adapt the definitions from [9] to allow more accurate reconstruction while still providing strong privacy guarantees. As our notion of privacy encompasses multiple correlated columns over vertically partitioned tables, it extends to privacy breaches (called disclosure risk) considering row linkage, studied in statistical disclosure control methods and [11].  
+31	 There has been recent work [22, 23] to specify authorization and control inferences for OLAP data cubes. However the model assumes that the data resides at a single server, unlike our problem, where private data is integrated from multiple clients.  
+32	 Another related area is that of secure multiparty computation [13, 25], that allows any function, whose inputs are shared between multiple clients to be evaluated, such that nothing other than the result is revealed. Since the general protocols are expensive, efficient protocols have been proposed for specific database and data mining operations, e.g. [3, 8, 12, 16, 19]. However, these protocols are designed for a small number of clients.  
+33	 3. DATA PERTURBATION  
+34	 A single record of the table is referred to as a row, while an attribute is referred to as a column. A single column from a single row is the granularity of perturbation and is referred to as a data element.  
+35	 D EFINITION 1. Perturbation Algorithm: A perturbation algorithm  is a randomized algorithm that given a table T creates a table T  having the same number of rows and columns.  
+36	 We will denote the unperturbed table as T and the perturbed table as T  . The perturbation algorithm is public. However, the actual random numbers used by it are hidden.  
+37	 Let t i j and t  i j denote the value of the element in the i th row of the j th column in tables T </i>and <i>T  respectively. The perturbation algorithm is said to be local </i>if <i>t  i j depends only on t i j , while it is said to be global </i>if <i>t  i j depends on other elements in the j th column of T .  
+38	 Let D j denote the domain of elements in the j th column of T . D j is said to be continuous for numeric columns, and discrete for categorical columns. For the class of perturbation algorithms we study, for every column being perturbed, we require the perturbation algorithm to select a fixed probability density function (p.d.f.) on the column's domain. For the j th column we call this p.d.f. the replacing p.d.f. </i>on <i>D j . Both D j as well as the replacing p.d.f. on D j are public.  
+39	 D EFINITION 2. Retention Replacement Perturbation: Retention replacement perturbation is a perturbation algorithm, where each element in column j is retained with probability p j , and with probability </i>(1 - <i>p j ) replaced with an element selected from the replacing p.d.f. on D j . That is,  
+40	 t  i j = t i j with probability p j element from replacing p.d.f. on D j with probability (1-p j ).  
+41	 If column j of the table can be revealed without perturbation we set p j = 1.  
+42	 Retention replacement perturbation, where the replacing p.d.f. is the uniform p.d.f. is called uniform perturbation. We assume that each column of the table T  has been perturbed independently using uniform perturbation. In Section 6.2, we show that uniform perturbation provides better privacy guarantees for rare events. Other alternatives and comparisons are also given in the same section.  
+43	 4. RECONSTRUCTION  
+44	 An aggregate function on the original table T , must be reconstructed by accessing the perturbed table T  . The accuracy of the reconstruction algorithm is formalized below by the notion of approximate probabilistic reconstructability.  
+45	 D EFINITION 3. Reconstructible Function: Given a perturbation  converting table T to T  , a numeric function f on T is said  
+46	 to be </i>(<i>n</i>, , ) <i>reconstructible by a function f  , if f  can be evaluated on the perturbed table T  so that </i>| <i>f  f </i>| &lt; <i>max</i>(,  <i>f </i>) <i>with probability greater than </i>(1 - ) <i>whenever the table T has more than n rows. The probability is over the random choices made by </i><i>.  
+47	 For boolean functions, (n</i>, ) reconstructability needs <i>f </i>and <i>f  to agree exactly with probability greater than (1 - ).  
+48	 Referring to Figure 1, to answer the aggregate query count</i>(<i>P 1  P 2  . . . P k ) on k </i>columns of the original table, <i>T , a set of 2 k queries, count</i>(<i>P 1  P 2  . . . P k ), count</i>(¬<i>P 1  P 2  . . . P k ), count</i>(<i>P 1  ¬ P 2  . . . P k ), count</i>(¬<i>P 1 ¬ P 2  . . . P k ) . . . count</i>(¬<i>P 1 ¬ P 2  . . . ¬P k ) are generated. These queries are evaluated on the perturbed table T  . The answers on T  are reconstructed into estimated answers for the same queries on T , which include the answer to the original query.  
+49	 Without loss of generality, assume that the predicates are only over perturbed columns. We present reconstruction algorithms for numeric columns. These algorithms can be extended to categorical columns too as shown in Section 6.  
+50	 4.1 Reconstructing Single Column Aggregates  
+51	 Consider the uniform retention replacement perturbation with retention probability p </i>applied on a database with <i>n rows and a single column, C</i>, with domain [<i>min</i>, <i>max]. Consider the predicate P </i>= <i>C</i>[<i>low</i>, <i>high</i>]. Given the perturbed table <i>T  , we show how to estimate an answer to the query count</i>(<i>P</i>) on <i>T .  
+52	 Let tables T </i>, <i>T  each have n </i>rows. Let <i>n r = count</i>(<i>P) evaluated on table T  , while n o = count</i>(<i>P</i>) estimated for table <i>T </i>. Given <i>n r we estimate n o as  
+53	 n o = 1 p (n r n</i>(1 - <i>p</i>)<i>b) , where b = high </i>- <i>low max </i>- <i>min .  
+54	 The intuition is that out of the n </i>rows in table <i>T , the expected number of rows that get perturbed is n</i>(1 - <i>p). For uniform perturbation, a b </i>fraction of these rows, i.e. <i>n</i>(1 - <i>p</i>)<i>b rows, will be expected to lie within the [low</i>, <i>high] range. The total number of rows observed in range [low</i>, <i>high</i>] in <i>T  , n r , can be seen as the sum of those rows that were decided to be perturbed into [low</i>, <i>high] (from outside, or perturbed and retained within the interval) and those rows that were unperturbed in the original interval. Subtracting the n</i>(1 - <i>p</i>)<i>b perturbed rows from n r , we get an estimate for the number of unperturbed rows, with values in [low</i>, <i>high</i>] in <i>T . This is scaled up by 1/p </i>to get the total number of original rows in <i>T </i>in [<i>low</i>, <i>high], as only a p fraction of rows were retained.  
+55	 The fraction f </i>of rows originally in [<i>low</i>, <i>high] is therefore estimated as  
+56	 f  = n o n = n r pn (1 - p</i>)(<i>high </i>- <i>low) p</i>(<i>max </i>- <i>min) .  
+57	 Not only is the above estimator a Maximum Likelihood Estimator (MLE) as shown in Section 4.2, it reconstructs an approximate answer with high probability. T HEOREM 1. Let the fraction of rows in </i>[<i>low</i>, <i>high</i>] <i>in the original table f be estimated by f  , then f  is a </i>(<i>n</i>, , ) <i>estimator for f if n  4 log( 2  )(p) 2 .  
+58	 We now formalize the above reconstruction procedure. This formalization provides the basis for the reconstruction of multiple columns in Section 4.2.  
+59	 Let vector y </i>= [<i>y 0 , y 1 ] = [count</i>(¬<i>P</i>), <i>count</i>(<i>P)] be the answers on table T  , and let vector x </i>= [<i>x 0 , x 1 ] = [count</i>(¬<i>P</i>), <i>count</i>(<i>P)] denote the estimates for table T </i>. Let <i>b be defined as before and a </i>= 1 - <i>b</i>. As only table <i>T  is available, x is estimated using the constraint xA </i>= <i>y</i>, which gives the estimator <i>x </i>= <i>yA 1 . Here A is the following transition matrix  
+60	 (1 - p</i>)<i>a </i>+ <i>p (1 - p</i>)<i>b (1 - p</i>)<i>a (1 - p</i>)<i>b </i>+ <i>p .  
+61	 The element in the first row and first column of A</i>, <i>a 00 = (1- p</i>)<i>a</i>+ <i>p is the probability that an element originally satisfying ¬P </i>in <i>T after perturbation satisfies ¬P </i>in <i>T  . This probability was calculated as the sum of the probabilities of two disjoint events. The first being that the element is retained, which occurs with probability p. The second being that the element is perturbed and after perturbation satisfies ¬P</i>, which together has probability (1 - <i>p</i>)<i>a. The element a 01 is the probability that an element satisfying ¬P </i>in <i>T after perturbation satisfies P </i>in <i>T  . The element a 10 is the probability that an element satisfying P </i>in <i>T </i>after perturbation satisfies ¬<i>P </i>in <i>T  . The element a 11 is the probability that an element satisfying P in T </i>after perturbation satisfies <i>P </i>in <i>T  . Their values were similarly derived.  
+62	 If y </i>= [<i>n</i>- <i>n r , n r ] and x </i>= [<i>n</i>- <i>n o , n o ], the solution to the equation below gives the same estimator as derived earlier:  
+63	 n </i>- <i>n o n o (1 - p</i>)<i>a </i>+ <i>p (1 - p</i>)<i>b (1 - p</i>)<i>a (1 - p</i>)<i>b </i>+ <i>p = n </i>- <i>n r n r .  
+64	 4.2 Reconstructing Multiple Column Aggregates  
+65	 Assume now that the uniform retention replacement perturbation, with retention probability p</i>, has been applied to each of <i>k columns of a table, T . Consider the aggregate query count</i>(<i>P 1  P 2  ...P k ) on table T </i>. In practice <i>k is small.  
+66	 We create a k </i>× 2 matrix, <i>R</i>, with <i>k rows and 2 columns, having 1 row for each query column. R i,1 gives the probability that a number randomly selected from the replacing p.d.f. for column i will satisfy predicate P i , while R i,0 is the probability of the complementary event, that a number selected from the replacing p.d.f. will satisfy ¬ P i .  
+67	 Take for instance the query, Q=count(age[30-45]  salary[50k120k]  house-rent[700-1400]) with the domains for age, salary and house-rent being [0-100], [25k-200k], [500-2500]. Then R will be [[0.85, 0.15], [0.6, 0.4], [0.65, 0.35]], since the first column being age[30-45] implies R 1,1 = (45 - 30)/(100 - 0) = 0.15, while R 1,0 = 1 - 0.15 = 0.85, etc.  
+68	 As stated earlier, to answer the query count</i>(<i>P 1  P 2 . . . P k ), we ask 2 k aggregate queries on the perturbed table, T  . The 2 k answers on perturbed table T  are converted into estimated answers to these 2 k aggregate queries on the original table T, which includes the estimated answer to the original query.  
+69	 Let y be a row vector of size 2 k that has the answers to the above queries on perturbed table T  , and let x be a row vector of size 2 k that has the reconstructed estimated answers to the queries on original table T . We order the answers to the 2 k queries in vectors x</i>, <i>y using the bit representation of the vector index as shown in Figure 2. Let Q</i>(<i>r</i>, 1) denote the predicate(<i>P r ) on the r th column of query Q</i>, and <i>Q</i>(<i>r</i>, 0) its negation (¬<i>P r ). Let bit</i>(<i>i</i>, <i>r</i>) denote the <i>r th  
+70	 Query Estimated on T Evaluated on T   
+71	 count</i>(¬<i>P 1  ¬ P 2 ) x 0 y 0 count</i>(¬<i>P 1  P 2 ) x 1 y 1 count</i>(<i>P 1  ¬ P 2 ) x 2 y 2 count</i>(<i>P 1  P 2 ) x 3 y 3  
+72	 Figure 2: Answering query count</i>(<i>P 1  P 2 )  
+73	 bit from the left in the binary representation of the number i using k bits. Then, x i  
+74	 = count( k r=1 Q</i>(<i>r</i>, <i>bit</i>(<i>i</i>, <i>r</i>))) in <i>T </i>, for 0  <i>i  2 k 1; y i  
+75	 = count( k r=1 Q</i>(<i>r</i>, <i>bit</i>(<i>i</i>, <i>r</i>))) in <i>T  , for 0  i  2 k 1.  
+76	 For example, for the query count(age[30-45]  salary[50k-120k]   
+77	 house-rent[700-1400]), y[6 10 ] = y[110 2 ] = count(age[30-45]  salary[50k-120k]  ¬ house-rent[700 - 1400])  
+78	 By a single scan through the perturbed table T  vector y can be calculated. Vector x </i>is reconstructed from vector <i>y using the matrix inversion technique or the iterative Bayesian technique described below. The data analyst may either be interested only in the component x 2 k 1 , which is the answer to the count( k r=1 P r ) query on T , or she may be interested in the entire vector x.  
+79	 4.2.1 Matrix Inversion technique  
+80	 If p r is the retention probability for the r th column, we calculate vector x </i>from vector <i>y </i>as <i>x </i>= <i>yA 1 . The transition matrix, A, with 2 k rows and 2 k columns, can be calculated as the tensor product [15] of matrices  
+81	 A </i>= <i>A 1  A 2  A 3 ....  A k  
+82	 where the matrix A r , for 1  r </i> <i>k is the transition matrix for column r (see Section 4.1).  
+83	 A r = (1 - p r )a r + p r (1 - p r )b r (1 - p r )a r (1 - p r )b r + p r where b r = R r,1 and a r = R r,0 = 1 - R r,1 .  
+84	 The entries of the tensor product matrix, A, can be explicitly calculated to be a i j = k r=1 ((1 - p r ) × R r</i>,<i>bit</i>( <i>j</i>,<i>r) + p r ×  (bit</i>(<i>i</i>,<i>r</i>),<i>bit</i>( <i>j</i>,<i>r)) ),  0  i &lt; 2 k , 0  j &lt; 2 k where  (c</i>,<i>d) = 1 if c </i>= <i>d</i>, and 0 if <i>c d</i>, for <i>c</i>, <i>d  {0, 1}.  
+85	 We split the space of possible evaluations of a row into 2 k states, according to which of the 2 k mutually exclusive predicate combinations the row satisfies. We say a row is said to belong to state i if it satisfies the predicate  k r=1 Q ( r</i>, <i>bit</i>(<i>i</i>, <i>r)). For example, from Figure 2, a row in state 0 satisfies ¬P 1  ¬ P 2 while a row in state 1 satisfies ¬P 1  P 2 etc.  
+86	 The entry a i j of matrix A above represents the probability that a row belonging to state i </i>in <i>T </i>, after perturbation belongs to state <i>j in T  . As each column was independently perturbed the probability of transition from state i </i>to state <i>j is the product of the probabilities for the transitions on all columns. The contribution from the r th column to the transition probability is the sum of (1 - p r ) × R r</i>,<i>bit</i>( <i>j</i>,<i>r) , if the element was decided to be perturbed, and p r ×  (bit</i>(<i>i</i>,<i>r</i>),<i>bit</i>( <i>j</i>,<i>r)) , if the element was decided to be retained. The term  (bit</i>(<i>i</i>,<i>r</i>),<i>bit</i>( <i>j</i>,<i>r)) ensures that the retention probability p r adds up only if the source and destination predicates on the r th column are the same for states i </i>and <i>j</i>. Thus the probability of transition from state <i>i </i>to state <i>j on the r th column is (1- p r )×R r</i>,<i>bit</i>( <i>j</i>,<i>r) + p r ×  (bit</i>(<i>i</i>,<i>r</i>),<i>bit</i>( <i>j</i>,<i>r)) . The product of this probability over all columns gives the probability of transition from state i </i>to state <i>j</i>, <i>a i j .  
+87	 T HEOREM 2. The vector x calculated as A 1 y is the maximum likelihood estimator (MLE) of the relaxed a priori distribution (  
+88	 i x i = n and </i>0  <i>x i  n are the exact constraints, the relaxed constraint only ensures i x i = n) on the states that generated the perturbed table.  
+89	 The multiple column aggregate is (n, , ) reconstructible, is shown by applying the Chernoff bound, to bound the error in y, and then bounding the error added during inversion.  
+90	 4.2.2 Iterative Bayesian technique  
+91	 Let vectors x </i>and <i>y of size 2 k be the a priori distribution on states of the original rows, and posteriori distribution on states of perturbed rows, as introduced above. Let the original states of rows in T selected from the a priori distribution be given by random variables U 1 , U 2 , ....U n , while the states of the n perturbed rows in T  be given by the random variables V 1 , V 2 , ...V n . Then for 0  p</i>, <i>q </i> <i>t = (2 k 1) and 1  i </i> <i>n</i>, we have <i>Pr</i>(<i>V i = q</i>) = <i>y q /n, and Pr</i>(<i>U i = p</i>) = <i>x p /n</i>. Also <i>Pr</i>(<i>V i = q</i>|<i>U i = p</i>) = <i>a pq is the transition probability from state p </i>to <i>q.  
+92	 From Bayes rule, we get  
+93	 Pr</i>(<i>U i = p</i>|<i>V i = q) = P</i>(<i>V i = q</i>|<i>U i = p</i>)<i>P</i>(<i>U i = p) P</i>(<i>V i = q)  
+94	 = P</i>(<i>V i = q</i>|<i>U i = p</i>)<i>P</i>(<i>U i = p) t r=0 P</i>(<i>V i = q</i>|<i>U i = r</i>)<i>P</i>(<i>U i = r)  
+95	 = a pq x p n t r=0 a rq x r n  
+96	 = a pq x p t r=0 a rq x r .  
+97	 We iteratively update x using the equation  
+98	 Pr</i>(<i>U i = p) = t  
+99	 q=0 Pr</i>(<i>V i = q</i>)<i>Pr</i>(<i>U i = p</i>|<i>V i = q).  
+100	 This gives us the update rule,  
+101	 x T +1 p = t  
+102	 q=0 y q a pq x T p t r=0 a rq x T r ,  
+103	 where vector x T denotes the iterate at step T </i>, and vector <i>x T +1 the iterate at step T + 1.  
+104	 We initialize the vector, x 0 = y, and iterate until two consecutive x iterates do not differ much. This fixed point is the estimated a priori distribution. This algorithm is similar to the iterative procedure proposed in [4] for additive perturbation and shown in [2] to be the Expectation Maximization (EM) algorithm converging to the Maximum Likelihood Estimator (MLE).  
+105	 4.2.3 Error in Reconstruction  
+106	 We provide here a brief analysis of the error in the reconstruction procedures. A quantitative analysis of the magnitude of error is easy for the inversion method, but such an analysis is much harder for the iterative method. Due to the randomization in the perturbation algorithm there are errors in the transition probabilities in  
+107	 matrix A</i>. This causes <i>y, the posteriori distribution after perturbation calculated from T  , to have errors. Hence the reconstructed x will have errors.  
+108	 The error decreases as the number of rows, n, increases. Let a  i j denote the actual fraction of original rows of state i that were converted to state j</i>. Then as <i>n </i>increases, <i>a i j will be a closer approximation to a  i j . The error decreases as n 0.5 as indicated by Theorem 1, and verified empirically in Section 7.  
+109	 The error in reconstruction increases as the number of reconstructed columns, k</i>, increases, and the probability of retention, <i>p, decreases. The largest and smallest eigenvalues of A can be shown to be 1 and p k respectively and the condition number of the matrix A </i>grows roughly as <i>p k (see Section 7). The condition number of a matrix is a good indicator of the error introduced during inversion [14].  
+110	 5. GUARANTEES AGAINST PRIVACY  
+111	 BREACHES  
+112	 Private data from multiple clients is perturbed before being integrated at the server. In this section, we formalize the privacy obtained by this perturbation.  
+113	 The notion of a ( 1 ,  2 ) privacy breach was introduced in [9]. We extend this to introduce a new privacy metric, called the (s,  1 ,  2 ) privacy breach. Consider a database of purchases made by individuals. It is quite likely that many people buy bread, but not many buy the same prescription medicine. The new metric is more concerned about whether an adversary can infer from the randomized row which medicine a person bought, and is less concerned about the adversary determining with high probability that the original row had bread, as most individuals buy bread and it does not distinguish the individual from the rest of the crowd.  
+114	 Assume that the adversary has access to the entire perturbed table T  at the server, and the exact a priori distribution on the unperturbed data (which can be reconstructed [4]) 1 . Also assume that any external information is already incorporated into the database.  
+115	 5.1 Review of ( 1 ,  2 ) Privacy Breach  
+116	 Consider a data element of domain V X perturbed by a perturbation algorithm into another domain V Y .  
+117	 D EFINITION 4. ( 1 ,  2 ) Privacy Breach[9]: Let Y denote the random variable corresponding to the perturbed value and X that corresponding to the original value obtained from the a priori distribution. We say that there is a ( 1 ,  2 ) privacy breach with respect to Q </i> <i>V X if for some S </i> <i>V Y P</i>[<i>X </i> <i>Q]   1 and P</i>[<i>X </i> <i>Q</i>|<i>Y </i> <i>S ]   2 where 0 &lt;  1 &lt;  2 &lt; 1 and P</i>[<i>Y </i> <i>S </i>] &gt; 0<i>.  
+118	 Intuitively suppose the probability of an event, (age  10) (say), according to the a priori probability is   1 = 0.1 (say). After observing the perturbed value, if the posteriori probability of the same event increases to   2 = 0.95 (say), then there is a (0.1,0.95) privacy breach with respect to the event (age  10).  
+119	 5.2 (s,  1 ,  2 ) Privacy Breach  
+120	 1 From Section 4.1, the error in the reconstructed a priori distribution for very selective predicates is large. This adds to the privacy of the perturbed rows.  
+121	 In retention replacement perturbations, which are of interest to us, the column is perturbed back into the same domain, and hence V X = V Y . Let S </i> <i>V X , with P</i>[<i>X </i> <i>S </i>] = <i>p s , for X  o V X where  o represents selecting an element from V X according to the a priori distribution on V X . Let P</i>[<i>Y </i> <i>S </i>] = <i>m s , for Y  r V X , where  r represents selecting an element from V X according to the replacing distribution, which is different from the distribution of the perturbed table. The ratio p s /m s is called the relative a priori probability of the set S .  
+122	 The relative a priori probability is a dimensionless quantity that represents how frequent a set is according to its a priori probability as compared to the replacing p.d.f. (the uniform p.d.f.). In a database of purchases, medicines will have low relative a priori probability since different people take different medicines, while bread will have high relative a priori probability.  
+123	 D EFINITION 5. (s,  1 ,  2 ) Privacy Breach: Let Y denote the random variable corresponding to the perturbed value and X that corresponding to the original value obtained from the a priori distribution.  
+124	 Let S </i> <i>V X , we say that there is a </i>(<i>s,  1 ,  2 ) privacy breach with respect to S if the relative a priori probability of S , p s /m s &lt; s, and if P</i>[<i>X </i> <i>S </i>] = <i>p s   1 and P</i>[<i>X </i> <i>S </i>|<i>Y </i> <i>S ]   2 where 0 &lt;  1 &lt;  2 &lt; 1 and P</i>[<i>Y </i> <i>S </i>] &gt; 0<i>.  
+125	 The value of s in the privacy breach is addressed by the next result.  
+126	 T HEOREM 3. The median value of relative a priori probability, over all subsets S , S </i> <i>V X , is 1.  
+127	 We define rare sets as those that have relative a priori probability smaller than 1. We next show that privacy breaches do not happen for rare sets.  
+128	 5.3 Single Column Perturbation  
+129	 T HEOREM 4. Let p be the probability of retention, then uniform perturbation applied to a single column is secure against a (s,  1 ,  2 ) breach, if  
+130	 s &lt; ( 2  1 )(1 - p) (1 -  2 )p .  
+131	 As a concrete example, for uniform perturbation, with p=0.2, there are no (68, 0.1, 0.95) breaches. This means for any set S , if  2 &gt; 0.95 with uniform perturbation,  1 will be large (&gt; 0.1) when p s /m s &lt; 68. In fact, for a rare set, with s &lt; 1, there will be no (0.937, 0.95) privacy breaches in the original ( 1 ,  2 ) model for this perturbation.  
+132	 5.4 Multiple Independently Perturbed Columns  
+133	 Let D i be the domain for column i </i>in a <i>k column table. Then the domain of the table, D </i>= <i>D 1 × D 2 × . . . D k . Each column of the table is perturbed independently by a retention replacement perturbation scheme.  
+134	 There is an a priori probability distribution of the rows in table T </i>. Let <i>S i  D i be a subset of the domain of the i th column for 1  i </i> <i>k</i>. Let <i>S </i>= <i>S 1 × S 2 × . . . S k , then S </i> <i>D. Let  
+135	 P</i>[<i>S </i>] = <i>p S 1 × S 2 × ...S k = p s (say) be the a priori probability of S . Let P</i>[<i>Y i  S i ] = m S i , for Y i   i D i , where   i denotes selecting randomly from the replacing p.d.f. on D i , for all 1  i </i> <i>k. Then P</i>[<i>Y </i> <i>S </i>] = <i>m S 1 m S 2 ..m S k = m s (say) for Y </i>= (<i>Y 1 , Y 2 , . . . Y k )   D, where   denotes selecting randomly from the replacing p.d.f. for each column independently. p s /m s , the relative a priori probability, is the ratio of the a priori probability to the replacing probability, of the combination of values for the columns together. Correlated columns with higher a priori probabilities have larger values of p s /m s .  
+136	 T HEOREM 5. There will not be a ( 1 ,  2 ) privacy breach with respect to </i>(<i>S 1 × S 2 × . . . S k ) = S </i> <i>D, if  
+137	 p s m s &lt;  2 (1 -  1 )(1 - p) k  
+138	 (1 -  2 ) k i=1 ((1 - p</i>)<i>m S i + p) .  
+139	 S i denotes the subset on column i within which the original value must be identified for the privacy breach. In the case, S i denotes a single value or a small range within the domain of a continuous column, hence (1 - p</i>)<i>m S i  p</i>. We approximate (1 - <i>p</i>)<i>m S i + p by p to get  
+140	  2 (1 -  1 )(1 - p) k  
+141	 (1 -  2 ) k i=1 ((1 - p</i>)<i>m S i + p)   2 (1 -  1 )(1 - p) k  
+142	 (1 -  2 )p k (1 - )  
+143	 for some small constant . Thus for some small constant , uniform perturbation applied individually to k columns is secure against (s,  1 ,  2 ) breaches for  
+144	 s &lt;  2 (1 -  1 )(1 - p) k  
+145	 (1 -  2 )p k (1 - ).  
+146	 As an example, for uniform perturbation with p=0.2 applied independently to two columns, there are no (273,0.1,0.95) breaches for joint events on the columns (when m S i are small).  
+147	 6. EXTENSIONS  
+148	 6.1 Categorical Data  
+149	 Consider a categorical column, C</i>, having discrete domain <i>D. Let S </i> <i>D</i>. A predicate <i>P</i>, on column <i>C</i>, using <i>S is defined as  
+150	 P</i>(<i>x) = true if x </i> <i>S f alse otherwise.  
+151	 Given the a priori and replacing p.d.f. on D, the reconstruction algorithms in Section 4 and the privacy guarantees in Section 5 can be directly applied to the categorical data by computing the probability of the predicate, P, being true.  
+152	 6.2 Alternative Retention Replacement Schemes  
+153	 Our analysis so far considered retention replacement perturbations where the replacing p.d.f is the uniform distribution. We now discuss some other interesting retention replacement schemes: 1 Identity perturbation: If the original data element is decided to be perturbed, the data element is replaced by a random element selected uniformly among all data elements [18] (i.e. the replacing p.d.f. is the same as the a priori distribution). 2 Swapping: Swapping is closely related to identity perturbation. In swapping with probability p we retain a data element, and with probability (1 - p) we decide to replace it. Numbers decided to be replaced are then randomly permuted amongst themselves.  
+154	 Identity perturbation and swapping are different from uniform perturbation which is a local perturbation. Identity perturbation can be local if there is knowledge of the a priori distribution before perturbation. Swapping is not a local perturbation and requires multiple rows at the client.  
+155	 6.2.1 Reconstructing Aggregates  
+156	 Identity perturbation and swapping do not affect the answers to single column aggregate queries, i.e. answers to single column aggregate queries on the perturbed table, T  , are returned directly as answers to those queries on the original table, T .  
+157	 The difference in multi-column reconstruction for identity perturbation and swapping as compared to uniform perturbation is in the evaluation of vector R </i>in Section 4.2. Recall that <i>R i,1 is the probability that an element selected from the replacing p.d.f. on column i </i>satisfies the predicate on the <i>i th column, P i . The replacing p.d.f. (which is the original p.d.f. for identity perturbation and swapping) is required for reconstruction. This requires the server to have the original p.d.f. for each column. This requirement is however obviated by the observation in the previous paragraph, that the fraction of elements satisfying P i in T is the same as the fraction of elements satisfying P i in T  . Hence R i,1 can be calculated from T  . R i,0 as before is calculated as 1 - R i,1 .  
+158	 The reconstruction error after identity perturbation and swapping will be smaller than that compared to uniform perturbation for sets, S , with small relative a priori probability. This is because in uniform perturbation the noise due to the perturbed data elements that now belong to S , but did not before perturbation, exceeds significantly the number of data elements that were in S originally and retained during perturbation.  
+159	 6.2.2 Guarantees against Privacy Breaches  
+160	 The guarantees for identity perturbation and swapping can be obtained using m S i = p S i in Theorems 4 and 5. As an example we restate Theorem 4 for identity perturbation.  
+161	 L EMMA 1. For a single column, identity perturbation is secure against </i>(<i>s,  1 ,  2 ) privacy breaches for  
+162	  1 &lt;  2 p 1 - p .  
+163	 P ROOF : For identity perturbation, m s = p s , hence p s /m s = 1 S . Repeating the argument in Theorem 4 we get ( 2  1 )(1 - p) &gt; (1 -  2 )p, which implies the result.  
+164	 The above ( 1 ,  2 ) guarantee for identity perturbation is independent of the subset S . Uniform perturbation gives better ( 1 ,  2 ) guarantees for a set of rare data elements, i.e. a set with p s /m s &lt; 1 and worse for sets with p s /m s &gt; 1. Identity perturbation and swapping have a privacy breach in the presence of external knowledge about rare values (eg. the largest or smallest value). Rare values need to be suppressed (i.e. blanked out) [17] for privacy with these perturbations.  
+165	 age &lt; 30  
+166	 salary&lt;100k  
+167	 age &lt; 21  
+168	 +: High +:High -:Low  
+169	 -:Low  
+170	 Figure 3: Decision Tree Example  
+171	 6.3 Application to Classification  
+172	 We show how aggregate queries on multiple columns can be used for privacy preserving construction of decision trees [4]. Consider the tree in Figure 3 built on randomized table T  with schema (age, salary, house-rent, class-variable) to predict the column classvariable. The column class-variable can take two values: + and representing high and low credit-risk (say). The private columns among age, salary, house-rent and class-variable, are each independently perturbed by a retention replacement perturbation. Let Q </i>denote the predicate (class-variable = `+') while ¬<i>Q denote the predicate (class-variable=`-').  
+173	 For the first split, say on (age &lt; 30), the gini index is calculated using the estimated answers of the four queries: count(age[030]  ¬ Q), count(¬ age[0,30]  ¬ Q), count(age[0-30] Q ) and count(¬ age[0,30] Q ) on T . Now consider the left subtree of elements having (age &lt; 30) using the predicate (salary &lt; 100k). We do not partition the randomized rows at any level in the decision tree. Previously with additive perturbation, randomized rows were partitioned, and the columns were reconstructed independently [4]. With multi-column reconstruction the queries count(age[0-30]  salary[25k-100k]  ¬ Q), count(age[0,30]  salary[100k-200k]  ¬ Q ), count(age[0-30]  salary[25k-100k]   
+174	 Q ) and count(age[0,30]  salary[100k-200k]  Q ) are reconstructed for T , to calculate the gini index or another split criterion at this level.  
+175	 Now consider the third split, on age once again, but this time (age &lt; 21), is decided after the queries count(age[0-21]  salary[25k100k]  ¬ Q ), count(age[21-30]  salary[25k-100k]  ¬ Q ) count(age[0-21]  salary[25k-100k]  Q ) and count(age[21-30]  salary[25k-100k]  Q ) are reconstructed for T . The number of columns in the count query did not increase at this split on age, which was already present among the original set of queried columns.  
+176	 7. EXPERIMENTS  
+177	 We next present an empirical evaluation of our algorithms on real as well as synthetic data. For real data, we used the Adult dataset, from the UCI Machine Learning Repository [5], which has census information. The Adult dataset contains about 32,000 rows with 4 numerical columns. The columns and their ranges are: age[17 90], fnlwgt[10000 - 1500000], hrsweek[1 - 100] and edunum[1 16].  
+178	 For synthetic data, we used uncorrelated columns of data having Zipfian distribution with zipf parameter 0.5. We create three such tables with different number of rows. The number of rows is varied in factors of 10 from 10 3 to 10 5 . The frequencies of occurrences are such that the least frequent element occurs 5 times. This results in the number of distinct values to be approximately one tenth of the number of rows in the table.  
+179	 7.1 Randomization and Reconstruction  
+180	 In this Section we assume that the vectors, x</i>, <i>y described in Section 4.2 have been normalized, i.e. all elements have been divided by n, the number of rows, so that the sum of the elements of each vector is 1. These vectors will also be referred to as probability density function (p.d.f.) vectors. x is the reconstructed p.d.f. vector, obtained by the inversion or iterative method in Section 4.2, while y is the p.d.f. vector on the perturbed table before reconstruction. Let the exact original value of the p.d.f. vector calculated directly on the unperturbed table, T </i>, be <i>x  . The l 1 norm of the difference between the estimated (x</i>) and actual (<i>x  ) p.d.f. vectors is used as the metric of error, and is referred to as the reconstruction error. The results of the reconstruction algorithm are quite accurate when the reconstruction error is much smaller than 1.  
+181	 0 0.2 0.4 0.6 0.8 1  
+182	 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1 l1-norm of error  
+183	 retention probability Reconstruction Error  
+184	 randomized reconstructed (iterative) reconstructed (inversion)  
+185	 Figure 4: Reconstruction errors for conjunction of 2 predicates for Adult data.  
+186	 0 0.2 0.4 0.6 0.8 1  
+187	 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1 l1-norm of error  
+188	 retention probability Reconstruction Error  
+189	 randomized reconstructed (iterative) reconstructed (inversion)  
+190	 Figure 5: Reconstruction errors for conjunction of 3 predicates for Adult data.  
+191	 Reconstruction algorithms: We first study the reconstruction error while reconstructing multiple columns of the Adult dataset for varying retention probabilities. The predicates being reconstructed are age[25-45], fnlwgt[100000-1000000] and hrsweek[30 
+192	 60]. Figure 4 shows the errors on first two among the above predicates while Figure 5 shows the errors on all three predicates. The retention probability, p</i>, plotted on the <i>x-axis, is the same for all columns. The reconstruction error is plotted on the y axis. There are three curves in each figure. The curve randomized, shows the l 1 norm of the difference between the perturbed p.d.f. vector y and the original p.d.f. vector x  . It serves as a baseline to study the reduction in error after reconstruction of y </i>to <i>x. The other two curves represent the reconstruction errors after the iterative </i>and the <i>inversion algorithms.  
+193	 The iterative procedure gives smaller errors than the inversion procedure, especially when a larger number of columns are reconstructed together, and the probability of retention, p, is small. This is reconfirmed later by Figures 7 and 8, and similar experiments on synthetic data (which we do not show for the lack of space). This may seem unintuitive as the inversion algorithm was shown to give the MLE estimator for x, satisfying i x i = 1 (after normalization). This can be explained by noting that the iterative algorithm gives the MLE estimator in the constrained space, i.e. for the subspace of i x i = 1 that satisfies 0  x i  1 i. Since the number of rows are always non-negative, this is the subspace that contains the exact original p.d.f. vector x  . When the retention probability decreases, and the number of columns to be reconstructed increases, the error during randomization and reconstruction increases, and the inversion algorithm may return a point outside the constrained space. The reconstruction error by the inversion method can grow arbitrarily. However, the iterative algorithm being constrained, will have a reconstruction error of at most two.  
+194	 1 10 100 1000 10000 100000 1e+06 1e+07  
+195	 1 2 3 4 5 6 7 8 Condition number  
+196	 Number of columns Matrix Condition Numbers  
+197	 p=0.2 p=0.5 p=0.7 p=0.9  
+198	 Figure 6: Condition number of the transition matrix  
+199	 Condition number: Figure 6 shows the condition number [14] of the transition matrix using a logarithmic scale on the y axis, and the number of columns reconstructed on the x axis, for different retention probabilities (p= 0.2, 0.5 etc.). The selectivity of each predicate is set to 0.5. The condition number (which is independent of the dataset) increases as the retention probability decreases and increases exponentially as the number of columns reconstructed increase. The condition number is a good indicator of the reconstruction error by the inversion algorithm [14], and by the iterative Bayesian algorithm at small error values. Unlike the continuous exponential growth in error as the number of reconstructed columns increases for the inversion algorithm, the error flattens out for the iterative algorithm, as it is bounded above by two as discussed earlier.  
+200	 7.2 Scalability  
+201	 Next we study, how the reconstruction error varies as the number of columns reconstructed, retention probability, number of rows, and selectivity of the predicates vary.  
+202	 0 0.2 0.4 0.6 0.8 1  
+203	 1 2 3 4 l1-norm of error  
+204	 Number of columns Reconstruction Error  
+205	 p=0.2 p=0.5 p=0.7 p=0.9  
+206	 Figure 7: Reconstruction errors for the Adult dataset for varying retention probabilities, p, by the iterative algorithm.  
+207	 0 0.2 0.4 0.6 0.8 1  
+208	 1 2 3 4 l1-norm of error  
+209	 Number of columns Reconstruction Error  
+210	 p=0.2 p=0.5 p=0.7 p=0.9  
+211	 Figure 8: Reconstruction errors for the Adult dataset for varying retention probabilities, p, by the inversion algorithm.  
+212	 Number of columns and retention probability: We study the reconstruction errors for varying number of columns and retention probabilities on the Adult dataset by the iterative and inversion algorithms. The predicates being reconstructed are age[ 25 - 45], fnlwgt[ 100000 - 1000000], hrsweek[ 30 - 60] and edulevel[ 5 10]. For the i </i>( 1  <i>i </i> 4 ) column experiment, the first <i>i among the above predicates are selected in the query. Figure 7 shows the reconstruction errors with the iterative algorithm, while Figure 8 shows the reconstruction errors with the inversion algorithm. Both iterative and inversion algorithms show an exponential increase in the error as the number of columns increases and as the probability of retention decreases. For smaller number of columns and higher retention probabilities both algorithms give comparable reconstruction errors. However for larger number of columns and lower retention probabilities the iterative algorithm gives smaller errors than the inversion algorithm. As explained in Section 7.1, unlike the iterative method, the reconstruction error by the inversion method can grow arbitrarily, whereas the error by the iterative method flattens out after an initial exponential increase.  
+213	 0.001 0.01 0.1 1  
+214	 1 2 3 4 5 6 7 8 l1-norm error  
+215	 Number of columns Reconstruction Error  
+216	 p=0.2 p=0.5 p=0.7 p=0.9  
+217	 Figure 9: Reconstruction error by iterative method on Zipfian dataset with 10 5 rows varying number of columns  
+218	 For all experiments on the Zipfian dataset, the predicate on each column has an independent selectivity of 0.5. Figure 9 shows the reconstruction error after the iterative algorithm is applied to the perturbed Zipfian dataset of size 10 5 . The figure shows the increase in the reconstruction error, plotted on the y axis, for increasing number of columns, plotted on the x axis, for different retention probabilities. After an initial exponential increase, the reconstruction error flattens out.  
+219	 0 0.2 0.4 0.6 0.8 1 1.2 1.4 1.6 1.8 2  
+220	 10 3 10 4 10 5 l1-norm of error  
+221	 Number of rows Reconstruction Error  
+222	 p=0.2 p=0.5 p=0.7 p=0.9  
+223	 Figure 10: Reconstruction error by iterative method on Zipfian dataset varying number of rows for 8 columns.  
+224	 Number of rows in the table: Figure 10 shows how the reconstruction error decreases as the number of perturbed rows available for reconstruction increase, for the the iterative reconstruction algorithm. In Figure 10 the retention probabilities are varied while the number of columns remains fixed at 8. For large values of n the reconstruction error decreases as n 0.5 as suggested by Theorem 1. This is also ratified by the factor 10 displacement between the reconstruction error lines for 10 3 and 10 5 rows in Figures 11 and 12. As the number of rows increases, it is possible to reconstruct more columns together at smaller retention probabilities.  
+225	 Selectivity of the predicates: Recall that e </i>= <i>x 2 k 1 is estimate for the aggregate query and a </i>= <i>x  2 k 1 is the actual answer for this query. |e </i>- <i>a</i>| is the called the absolute error while |<i>e </i>- <i>a</i>|/<i>a is called the relative error. Since we are interested in the variation of the 0.001 0.01 0.1 1  
+226	 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 Absolute Error  
+227	 Fractional interval width Absolute Error  
+228	 10 3  rows 10 4  rows 10 5  rows  
+229	 Figure 11: Absolute Error for the Zipfian dataset for p=0.2 for varying interval sizes.  
+230	 0.001 0.01 0.1 1  
+231	 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 Relative Error  
+232	 Fractional interval width Relative Error  
+233	 10 3  rows 10 4  rows 10 5  rows  
+234	 Figure 12: Relative Error for the Zipfian dataset for p=0.2 for varying interval sizes.  
+235	 error in the aggregate query with the selectivity of its predicate, for this set of experiments, we use the absolute and relative errors, instead of the l 1 norm of the difference of the p.d.f.vectors, as the error metric.  
+236	 For the experiments a single Zipfian column is used with uniform perturbation with retention probability p = 0.2. We vary the selectivity of the predicate of the numeric column by varying the size of the interval in the range predicate. Figure 11 and Figure 12 study the variation in absolute and relative errors respectively, as the size of the interval being queried changes. The fractional interval width, i.e. the ratio of the size of the interval being queried to the entire domain of the column, is plotted on the x axis while the error is plotted on the y axis. The absolute error in Figure 11 does not vary much with the interval width. However the relative error in Figure 12 increases as the interval width decreases. Both the absolute and relative errors decrease as the number of rows available for reconstruction increases.  
+237	 7.3 Privacy Breach Guarantees  
+238	 We study privacy breaches possible after perturbation on the Adult dataset. Figure 13 and Figure 14 show the maximum retention probability that avoids breaches for varying values of  1 for fixed  2 = 0.95, according to Theorem 5. To compute the values of s for sample predicates (subsets) of this dataset, we divide each column into 10 equiwidth intervals and consider predicates  
+239	 0 0.2 0.4 0.6 0.8 1  
+240	 0 0.2 0.4 0.6 0.8 1 Maximum retention probability p  
+241	 Apriori Probability Privacy guarantees for posterior probability = 0.95  
+242	 s=0.1 s=1 s=15  
+243	 Figure 13: Privacy for two columns for Adult data.  
+244	 0 0.2 0.4 0.6 0.8 1  
+245	 0 0.2 0.4 0.6 0.8 1 Maximum retention probability p  
+246	 Apriori Probability Privacy guarantees for posterior probability = 0.95  
+247	 s=0.1 s=1 s=30  
+248	 Figure 14: Privacy for three columns for Adult data.  
+249	 that are subsets formed by the cross product of the intervals. Thus for two columns we consider 10 2 subsets and for three columns we consider 10 3 subsets. The maximum values of s were observed to be 15 and 30 for two and three columns respectively. The median value of s has been shown to be one in Theorem 3. The two figures plot the maximum retention probability, p, that would avoid a (s,  1 ,  2 ) breach, on the y axis against the a priori probability,  1 , on the x axis for different values of relative a priori probability, s. The values of s </i>used are the maximum value of <i>s, the median value s </i>= 1, and <i>s = 0.1 for a rare set. Both figures show that if it suffices to just hide rare properties (i.e., with s  0.1), then for  1 &gt; 0.5, the retention probability p can be as high as 0.8. If we need to hide all the above properties, i.e. even for the largest s (the most common property), then for  1 &gt; 0.5 the retention probability can be selected to be as high as p </i>= 0.3. For <i>p = 0.3 both Figure 4 and Figure 5 show low reconstruction error. Thus reconstructability of 2 and 3 aggregates together, and privacy of data elements, are both achieved by perturbation for the Adult dataset, with p = 0.3. Thus our experiments indicate (s,  1 ,  2 )-privacy as well as multi-column aggregate reconstructability.  
+250	 8. SUMMARY AND FUTURE WORK  
+251	 The contributions of the paper are: · We introduce the problem of privacy preserving OLAP in a distributed environment. · We introduce the formalism for reconstructible functions on a perturbed table, and develop algorithms to reconstruct multiple columns together. We provide privacy guarantees that take into account correlations between any combination of categorical and numeric columns. · We provide two reconstruction algorithms to work with retention replacement perturbation: an iterative Bayesian algorithm, and a matrix inversion algorithm that also yields the maximum likelihood estimator. These algorithms can reconstruct count aggregates over subcubes without assuming independence between columns. · We evaluate proposed reconstruction algorithms both analytically and empirically. We study the privacy guarantees we get for different levels of reconstruction accuracy and show the practicality of our techniques. · We show the use of our techniques to related applications like classification.  
+252	 Future work includes extending this work to other aggregates over subcubes.  
+253	 Acknowledgements We thank Rajeev Motwani and Rajat Raina for discussions on identity perturbation and maximum likelihood estimators. We also thank Alexandre Evfimievski and an anonymous reviewer for insightful comments on the paper.  
+254	 9. REFERENCES  
+255	 [1] N. R. Adam and J. C. Wortmann. Security control methods for statistical databases: A comparative study. In ACM Computing Surveys, Vol21, No 4, Dec. 1989. [2] D. Agrawal and C. Aggarwal. On the design and quantification of privacy preserving datamining algorithms. In Proc. of the 2001 ACM Symp. on Principles of Database Systems. [3] R. Agrawal, A. Evfimievski, and R. Srikant. Information sharing across private databases. In Proc. of the 2003 ACM SIGMOD Intl. Conf. on Management of Data. [4] R. Agrawal and R. Srikant. Privacy-preserving data mining. In Proc. of the 2000 ACM SIGMOD Intl. Conf. on Management of Data. [5] C. Blake and C. Merz. UCI repository of machine learning databases, 1998. [6] S. Chawla, C. Dwork, F. McSherry, H. Wee, and A. Smith. Towards privacy in public databases. In Theory of Cryptography Conference, 2005. [7] H. Chernoff. Asymptotic efficiency for tests based on the sums of observations. In Annals of Mathematical Statistics, 1952. [8] C. Clifton, M. Kantarcioglu, X. Lin, J. Vaidya, and M. Zhu. Tools for privacy preserving distributed data mining. SIGKDD Explorations, 4(2):28­34, Jan. 2003. [9] A. Evfimievski, J. Gehrke, and R. Srikant. Limiting privacy breaches in privacy preserving data mining. In Proc. of the 2003 ACM Symp. on Principles of Database Systems. [10] A. Evfimievski, R. Srikant, R. Agrawal, and J. Gehrke. Privacy preserving mining of association rules. In Proc. of the 2002 ACM SIGKDD Intl. Conf. on Knowledge Discovery and Data Mining.  
+256	 [11] J. D. Ferrer and V. Torra. Disclosure risk assesment in statistical microdata protection via advanced record linkage. In Statistics and Computing, pages 343­354, 2003. [12] M. J. Freedman, K. Nissim, and B. Pinkas. Efficient private matching and set intersection. In Proc. Advances in Cryptology ­ EUROCRYPT 2004, 2004. [13] O. Goldreich, S. Micali, and A. Wigderson. How to play any mental game ­ a completeness theorem for protocols with a honest majority. In Proc. of the 1987 Annual ACM Symp. on Theory of Computing. [14] G. Golub and C. V. Loan. Matrix computations. John Hopkins Series in the Mathematical Sciences, 1996. [15] K. Hoffman and R. Kunze. Linear algebra. Prentice-Hall Inc, 1971. [16] B. A. Huberman, M. Franklin, and T. Hogg. Enhancing privacy and trust in electronic communities. In Proc. of the 1st ACM Conference on Electronic Commerce, 1999. [17] C. A. J. Hurkens and S. R. Tiourine. Model and methods for the microdata protection problem. In Journal of Official Statistics, 1998. [18] C. K. Liew, U. J. Choi, and C. J. Liew. A data distortion by probability distribution. ACM Transactions on Database Systems, 10(3), 1985. [19] Y. Lindell and B. Pinkas. Privacy preserving data mining. In CRYPTO, 2000. [20] R. A. J. Moore. Controlled data-swapping techniques for masking public use microdata sets. In SRD Report RR 96-04, US Bereau of Census, 1996. [21] S. Rizvi and J. R. Haritsa. Maintaining data privacy in association rule mining. In Proc. of the 2002 Intl. Conf. on Very Large Data Bases. [22] L. Wang, S. Jajodia, and D. Wijesekera. Securing OLAP data cubes against privacy breaches. In In Proc. of the 2004 IEEE Symposium on Security and Privacy. [23] L. Wang, D. Wijesekera, and S. Jajodia. Cardinality-based inference control in data cubes. In Journal of Computer Security, 2004. [24] S. Warner. Randomized response: A survey technique for eliminating evasive answer bias. Journal of the American Statistical Assoc., 60(309). [25] A. Yao. How to generate and exchange secrets. In Proc. of the 1986 Annual IEEE Symp. on Foundations of Computer Science.  
+257	 10. APPENDIX  
+258	 Theorem 1. Let the fraction of rows in [low</i>, <i>high] in the original table, f </i>be estimated by <i>f  , then f  is a (n</i>, , ) estimator for <i>f if n  4 log( 2  )(p) 2 P ROOF : Let Y i be the indicator variable for the event that the i th row (1  i </i> <i>n) is perturbed and the perturbed value falls within [low</i>, <i>high]. Y i are i.i.d. with Pr</i>[<i>Y i = 1] = (1 - p</i>)<i>b </i>= <i>q (say), Pr</i>[<i>Y i = 0] = 1 - q. Let X i be the indicator variable for the event that the i th row is not perturbed and it falls within [low</i>, <i>high</i>]. Once again <i>X i are i.i.d. with Pr</i>[<i>X i = 1] = p f </i>= <i>r (say), Pr</i>[<i>X i = 0] = 1 - r</i>. Let <i>Z i be the indicator variable for the event that the i th randomized row falls in [low</i>, <i>high]. We have Z i = X i +Y i , and Pr</i>[<i>Z i = 1] = q</i>+<i>r </i>= <i>t </i>(say), and <i>Pr</i>[<i>Z i = 0] = 1-t. Let Z = n i=1 Z i = n r , the number of randomized values in range [low</i>, <i>high</i>]. Since <i>Z i 's are independent Bernoulli random variables, 0  t </i> 1 and <i>n  4 log( 2  )(p) 2 × t, applying Chernoff bounds[7] we get  
+259	 Pr</i>[|<i>Z </i>- <i>nt</i>| &gt; <i>nt</i>] &lt; 2<i>e nt2 4   f or  = p t  
+260	 Thus with probability &gt; 1 - , we have -np</i> &lt; <i>Z </i>- <i>nt </i>= <i>n r n</i>(<i>p f + (1 - p</i>)<i>b</i>) &lt; <i>np, which implies  
+261	 f -  &lt; n r pn (1 - p</i>)(<i>high </i>- <i>low) p</i>(<i>max </i>- <i>min) &lt; f +   
+262	 Hence | f </i>- <i>f  | &lt;  with probability &gt; 1 - .  
+263	 Theorem 2. The vector x </i>calculated as <i>A 1 y is the maximum likelihood estimator (MLE) of the relaxed a priori distribution 2 on the states that generated the perturbed table. P ROOF : Let V </i>= (<i>v 1 , v 2 , v 3 , ....v n ) be the observed state values for the n </i>perturbed rows in <i>T  . Let t = 2 k 1. Note that v i  { 0, 1, 2, ...., t</i>} for all <i>i </i> [1..<i>n</i>]. If <i>L</i>(<i>x) is the likelihood of the observations, V, given a probability distribution on the states, x</i>, in the original data, then <i>L</i>(<i>x</i>) = <i>Pr</i>(<i>V</i>|<i>x) = n i=1 Pr</i>(<i>v i | x) = n i=1 ( 1 n t j=0 a jv i x j ) = t i=0 ( 1 n t j=0 a ji x j ) y i (reordering according to the values of v i .) Maximizing L</i>(<i>x) is equivalent to maximizing log(L</i>(<i>x)).  
+264	 max log(L</i>(<i>x)) = t  
+265	 i=0 (y i × log( 1 n t  
+266	 j=0 x j a ji ))  
+267	 subject to the constraint t j=0 x j = n. This is equivalent to  
+268	 max x min  l</i>(<i>x, ) = t  
+269	 i=0 (y i log( 1 n t  
+270	 j=0 x j a ji )) - ( t  
+271	 j=0 x j n)  
+272	 where  is the Lagrangian multiplier.  
+273	 If t j=0 x j n &gt; 0 then setting  to arbitrarily large positive value, you can minimize the term -( t j=0 x j n) to an arbitrarily small negative number, similarly when t j=0 x j n &lt; 0, as  tends to the term becomes arbitrarily small. So the optimum ensures that the constraint t j=0 x j = n is satisfied.  
+274	 To maximize the expression, setting the partial derivatives to be zero we get,  
+275	 l x s = t  
+276	 i=0 y i a si t j=0 x j a ji  = 0 0  s </i> <i>t  
+277	 and l  = t j=0 x j n = 0.  
+278	 Matrix A is stochastic, i.e. t i=0 a si = 1 0  s </i> <i>t, as they are probabilities of transition out of a state. Consider the row vector, x </i>= <i>yA 1 calculated by the algorithm. For this vector x, t j=0 x j a ji = y i . Hence substituting above, l x s = t i=0 y i a si y i  = t i=0 a si  = 1 -   
+279	 Also t j=0 y j = t j=0 t i=0 x i a i j = t i=0 t j=0 x i a i j = t i=0 x i t j=0 a i j = t i=0 x i . As t j=0 y j = n we have t i=0 x i = n, satisfying l  = 0.  
+280	 Thus at x</i>, given by <i>x </i>= <i>yA 1 , and  = 1 we get a local maximum of l</i>(<i>x, ). We show that the local maximum is the global maximum,  
+281	 2 i.e. i x i = n </i>and 0  <i>x i  n are the exact constraints, the relaxed constraint only ensures i x i = n  
+282	 by analyzing the Hessian matrix, H</i>, of <i>l</i>(<i>x</i>, ) and showing <i>x T H x  0, for all x </i> <i>R t . Elements of H are given by,  
+283	 h si = l x s x i = m  
+284	 h=1 y h a ih a sh ( t j=0 x j a jh ) 2  0  s</i>, <i>i </i> <i>m  
+285	 .  
+286	 x T H x = t  
+287	 i=0 t  
+288	 s=0 h si x s x i  
+289	 = t  
+290	 i=0 t  
+291	 s=0 t  
+292	 h=0 y h a ih a sh ( t j=0 x j a jh ) 2 x s x i  
+293	 = t  
+294	 i=0 t  
+295	 s=0 t  
+296	 h=0  h a ih a sh x i x s  
+297	 where  h = y h ( t j=0 x j a jh ) 2  0  
+298	 Thus  
+299	 x T H x = t  
+300	 h=0  h t  
+301	 i=0 t  
+302	 s=0 a ih a sh x i x s  
+303	 = t  
+304	 h=0  h t  
+305	 i=0 a ih x i ( t  
+306	 s=0 a sh x s )  
+307	 = t  
+308	 h=0  h ( t  
+309	 s=0 a sh x s ) t  
+310	 i=0 a ih x i  
+311	 = t  
+312	 h=0  h ( t  
+313	 s=0 a sh x s )( t  
+314	 i=0 a ih x i )  
+315	 = t  
+316	 h=0  h ( t  
+317	 i=0 a ih x i ) 2  0  
+318	 Theorem 3. The median value of relative a priori probability, over all subsets S </i>, <i>S </i> <i>V X , is 1. P ROOF : Consider, any subset S </i> <i>V X , and S </i>= <i>V X S . Using notation as in Definition 5 we have p s + p s = 1 and m s + m s = 1. Hence if p s /m s  1 , we have p s /m s  1 and if p s /m s &lt; 1 we have p s /m s &gt; 1 Since this is true for any pair of complementary subsets, among all subsets of V X , half the subsets have relative a priori probability  1 and half  1. Hence the median value of s over all subsets of V X will be 1, if the median is not constrained to be one of the values attained.  
+319	 Theorem 4. Let p be the probability of retention, then uniform perturbation applied to a single column is secure against a (s,  1 ,  2 ) breach, if  
+320	 s &lt; ( 2  1 )(1 - p) (1 -  2 )p  
+321	 P ROOF : Let S </i> <i>V X with P</i>[<i>S </i>] = <i>p s according to the a priori distribution and P</i>[<i>S </i>] = <i>m s according to the replacing p.d.f. Let X and Y denote the random variables for the original and perturbed value respectively. Let R </i>denote the event that <i>X was replaced and R c it being retained. For a ( 1 ,  2 ) privacy breach with respect to S we need P</i>[<i>X </i> <i>S ]   1 . Also P</i>[(<i>X </i> <i>S </i>)|(<i>Y </i> <i>S )]  
+322	 = P</i>[(<i>X </i> <i>S </i>)  (<i>Y </i> <i>S </i>)  <i>R</i>] + <i>P</i>[(<i>X </i> <i>S </i>)  (<i>Y </i> <i>S </i>)  <i>R c ] P</i>[<i>Y </i> <i>S ]  
+323	   1 (1 - p</i>)<i>m s + pp s (1 - p</i>)<i>m s + pp s This is because P</i>[(<i>X </i> <i>S </i>)  (<i>Y </i> <i>S </i>)  <i>R</i>] = <i>P</i>[<i>X </i> <i>S </i>]<i>P</i>[<i>Y  S </i>|<i>R</i>]<i>P</i>[<i>R]   1 (1 - p</i>)<i>m s and P</i>[(<i>X </i> <i>S </i>)  (<i>Y </i> <i>S </i>)  <i>R c ] = P</i>[(<i>X  S </i>)  <i>R c ] = pp s . Thus if P</i>[<i>X </i> <i>S </i>|<i>Y </i> <i>S ]   2 ,  
+324	  1 (1 - p</i>)<i>m s + pp s (1 - p</i>)<i>m s + pp s   2  
+325	 Hence for a ( 1 ,  2 ) privacy breach with respect to S , we need  
+326	 p s m s  ( 2  1 )(1 - p) (1 -  2 )p  
+327	 Theorem 5. There will not be a ( 1 ,  2 ) privacy breach for (S 1 × S 2 × . . . S k ) = S </i> <i>D, if  
+328	 p s m s &lt;  2 (1 -  1 )(1 - p) k  
+329	 (1 -  2 ) k i=1 ((1 - p</i>)<i>m S i + p)  
+330	 P ROOF : Let X </i>= (<i>X 1 , X 2 , ..., X k ) be the random variable corresponding to the original value of the k column row from the a priori distribution on table T </i>, and <i>Y </i>= (<i>Y 1 , Y 2 , ....Y k ) that corresponding to the perturbed row, where each column is perturbed independently by a retention replacement perturbation. For A i , B i  D i we have P</i>[<i>Y i  B i | X i  A i ] = (1 - p</i>)<i>m B i + p p Ai</i><i>Bi p Ai , for 1  i </i> <i>k. Thus (1 - p</i>)<i>m B i  P</i>[<i>Y i  B i | X i  A i ]  (1 - p</i>)<i>m B i + p. Thus for A</i>, <i>B </i> <i>D </i>we have <i>L B (say) = k i=1 (1 - p</i>)<i>m B i  P</i>[<i>Y </i> <i>B</i>|<i>X </i> <i>A]  k i=1 ((1 - p</i>)<i>m B i + p</i>) = <i>U B (say). P</i>[(<i>X </i> <i>S </i>)|(<i>Y </i> <i>S )] =  
+331	 P</i>[(<i>Y </i> <i>S </i>)|(<i>X </i> <i>S </i>)]<i>P</i>[<i>X </i> <i>S ] P</i>[(<i>Y </i> <i>S </i>)|(<i>X </i> <i>S </i>)]<i>P</i>[<i>X </i> <i>S </i>] + <i>P</i>[(<i>Y </i> <i>S </i>)|¬(<i>X </i> <i>S </i>)]<i>P</i>[¬(<i>X </i> <i>S )]  
+332	  U S p s U S p s + L S (1 - p s )  
+333	 Suppose there is a ( 1 ,  2 ) privacy breach with respect to S , we need P</i>[<i>X </i> <i>S ]   1 , and P</i>[(<i>X </i> <i>S </i>)|(<i>Y </i> <i>S )]   2 Thus  
+334	 U S p s U S p s + L S (1 - p s )   2  
+335	 This implies p s L S (1 - p s )   2 U S (1 -  2 )  
+336	 Substituting values of U S , L S and noting that p s   1 hence 1- p s  1 -  1 , we get  
+337	 p s k i=1 m S i   2 (1 -  1 )(1 - p) k  
