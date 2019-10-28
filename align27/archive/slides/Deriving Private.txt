@@ -1,0 +1,182 @@
+Deriving Private Information from Randomized Data
+Zhengli Huang
+Wenliang (Kevin) Du
+Biao Chen
+
+Syracuse University
+
+Privacy-Preserving Data Mining
+Data Mining
+Data Collection
+Data Disguising
+Central Database
+Classification
+Association Rules
+Clustering
+
+Random Perturbation
++
+Original Data X
+Random Noise R
+Disguised Data Y
+
+How Secure is 
+Randomization Perturbation?
+
+A Simple Observation
+We can’t perturb the same number for several times.
+If we do that, we can estimate the original data: 
+Let t be the original data,
+Disguised data: t + R1, t + R2, …, t + Rm
+Let  Z = [(t+R1)+ … + (t+Rm)] / m
+Mean: E(Z) = t
+
+This looks familiar … 
+This is the data set (x, x, x, x, x, x, x, x)
+Random Perturbation:
+(x+r1, x+r2,……, x+rm)
+We know this is NOT safe.
+  Observation: the data set is highly correlated.
+
+
+Let’s Generalize!
+Data set: (x1, x2, x3, ……, xm)
+If the correlation among data attributes are high, can we use that to improve our estimation (from the disguised data)?
+
+
+Data Reconstruction (DR)
+Original Data X
+Disguised Data Y
+Distribution
+of random noise
+Reconstructed Data X’
+What’s their
+difference?
+Data Reconstruction
+
+Reconstruction Algorithms
+Principal Component Analysis (PCA)
+
+Bayes Estimate Method
+
+PCA-Based 
+Data Reconstruction
+
+PCA-Based Reconstruction
+Disguised
+Information
+Reconstructed
+Information
+Squeeze
+Information Loss
+
+How?
+Observation:
+Original data are correlated.
+Noise are not correlated.
+Principal Component Analysis
+Useful for lossy compression
+
+
+PCA Introduction
+The main use of PCA: reduce the dimensionality while retaining as much information as possible.
+1st PC: containing the greatest amount of variation. 
+2nd PC: containing the next largest amount of variation.
+
+For the Original Data
+They are correlated.
+If we remove 50% of the dimensions, the actual information loss might be less than 10%.
+
+For the Random Noises
+They are not correlated.
+Their variance is evenly distributed to any direction.
+If we remove 50% of the dimensions, the actual noise loss should be 50%.
+
+PCA-Based Reconstruction
+Original Data X
+Disguised Data
+Reconstructed
+ Data
+PCA Compression
+De-Compression
+
+Bayes-Estimation-Based 
+Data Reconstruction
+
+A Different Perspective
+What is the
+Most likely X?
+Disguised Data Y
+Possible X
+Possible X
+Possible X
+Random Noise
+
+The Problem Formulation
+For each possible X, there is a probability:  P(X | Y).
+Find an X, s.t., P(X | Y) is maximized.
+How to compute  P(X | Y)?
+
+The Power of the Bayes Rule
+P(X|Y)
+is difficult!
+P(X|Y)?
+P(Y|X)
+P(Y)
+P(X)
+*
+
+Computing P(X | Y)?
+P(X|Y) = P(Y|X)* P(X) / P(Y)
+P(Y|X):  remember Y = X + R
+P(Y): A constant (we don’t care)
+How to get P(X)?
+This is where the correlation can be used.
+Assume Multivariate Gaussian Distribution
+The parameters are unknown.
+
+Multivariate Gaussian Distribution
+A Multivariate Gaussian distribution
+Each variable is a Gaussian distribution with mean i 
+Mean vector  = (1 ,…, m)
+Covariance matrix  
+Both  and  can be estimated from Y
+So we can get P(X)
+
+Bayes-Estimate-based Data Reconstruction
+Original X
+Disguised
+ Data Y
+Randomization
+Estimated X
+Which X maximizes 
+P(X|Y)
+P(X)
+P(Y|X)
+
+Evaluation
+
+Increasing the Number of Attributes
+
+Increasing Eigenvalues of the Non-Principal Components
+
+How to improve 
+Random Perturbation?
+
+Observation from PCA
+How to make it difficult to squeeze out noise?
+Make the correlation of the noise similar to the original data.
+Noise now concentrates on the principal components, like the original data X.
+How to get the correlation of X?
+
+Improved Randomization
+
+Conclusion And Future Work
+When does randomization fail:
+Answer: when the data correlation is high.
+Can it be cured? Using correlated noise similar to the original data
+Still Unknown:
+Is the correlated-noise approach really better?
+Can other information affect privacy?
+
+

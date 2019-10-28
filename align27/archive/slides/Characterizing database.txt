@@ -1,0 +1,312 @@
+Characterizing Database User’s Access Patterns
+
+
+
+
+
+
+
+
+
+Qingsong Yao, Aijun An and Xiangji Huang
+  {qingsong,aan}@cs.yorku.ca,  jhuang@yorku.ca
+York University 
+Toronto, Canada
+
+Topics
+Motivation
+User Access Patterns
+Frequently performed queries, time/resource-consuming queries.
+User Access Event and User Access Graph
+Mining and Modeling User Access Patterns
+Log data collection and preprocessing
+SQL Query classification 
+Database user identification
+Database session identification
+Database session clustering
+Database session modeling
+Using User Access Patterns
+Related Works
+Conclusion
+
+Motivation
+The analysis of database workload  plays an important role in optimizing the performance of database systems.
+Previous workload analysis methods are from the view of the server, such as statistical summaries; buffer hit ratio.
+It has been brought into attention that analysis of task-oriented user sessions provides useful insight into query behaviour of  database users.
+A database user session is a sequence of queries issued by a user (or an application) to achieve a certain task. It consists of one or more database transactions, which are in turn a sequence of operations performed as a logical unit. 
+The SQL queries submitted by a client or a user have specific meaning and have certain format.
+The queries within a user session follow certain business logics or rules and have certain order.
+ Our research tries to solve the question of
+How to model database user behavior?
+How to find database user behavior efficiently?
+How to use database user behavior?
+
+User Access Patterns
+We use user access patterns to describe the behaviours of a client application or a group of users. 
+The user access patterns of a client application or a user group contains:
+A collection of frequently performed queries.
+A collection of time/resource-consuming queries.
+A collection of frequent user access event associated with the parameter distributions that represent the query format
+A collection of frequent user access graphs that represent the query execution order.	
+
+User Access Event and User Access Graph
+A user access event represents a set of similar queries. It contains a SQL template and a set of parameters
+SQL template: each value of a query is replaced by char  ‘%’.
+Parameters: the corresponding values in the query, and can be constants or variables.
+For example, event (“select * from customer where id=‘%’, cid) represent a set of queries retrieving a given customer’s info.
+A user access graph is a directed dependency graph, that represents the query execution order within a user session or the session execution order of a user
+The graph has one start node and one or more end nodes
+A node has a support value that is the frequency within  session.
+An edge is represented by  (i, j, k), where k is the probability of  j following i, which is called the confidence value. 
+A basic user access graph, whose nodes are events represent the query execution order. A high-level user access graph, whose nodes are graphs describes the orders among sessions of the same user.
+
+ Q33 can not be anticipated since the value ‘t202’ is unknown before it is requested, but Q34 does. Thus, Q33 contains a action that assigning variable g_tid as ‘t202’
+An instance of treatment history retrieving session (P3)
+q30: select count(tid) from treatment where cid = ’c101’
+q31: select tid from treatment where cid = ’c101’
+q32: select tid from treatment where cid = ’c101’ 
+	and status =‘1’
+q33: select * from treatment_details where tid = ’t202’
+q34: select card name from treatment_payment	
+	    where tid =’t202’
+An Example of User Access Graphs
+
+Mining User Access Patterns
+Database workload characterizing is based on database traces. 
+Traces are a collection of measures, such as pages read/written, locks, SQL statements, produced by all transactions being processed by the DBMS within a time interval. 
+The mining algorithm contains following steps:
+Trace data collection and preprocessing
+SQL query classification 
+Database user identification
+Database session identification
+Database session clustering
+Database session modeling
+
+
+Mining User Access Patterns (1)
+Trace data collection and preprocessing
+Trace data can be collected either at the client/mediator, or at the server. Client-side tools can monitor client requests and server responses. Server-side tools can monitor different kinds of event occurred in the server.
+Noise data and irrelevant data are removed, and log entries are transformed to meaningful format. 
+Frequent queries and time/resource-consuming queries are obtained.
+Query classification
+Each SQL query is transformed into an SQL template and a set of parameters.
+A user access event is assigned for each SQL template.  
+The parameter value distributions of a user access event are obtained. 
+A sequence of events obtained by replacing the query with the corresponding event.
+
+
+An Example
+
+Mining User Access Patterns (2) - Database User Identification
+
+The concept of "user" is not the database user that directly connects to the database server, but the user of database-based application 
+In a client/server application, requests submitted by the same application from the same address and use the same database connection are belonging to the same user.
+It is non-trivial task to identify users from the traces when database users  don’t connect to the database server directly, and may share database connections.
+Queries within a user session usually has the same database connection, thus identifying sessions can help to find users.
+Other kinds of log, such as web access log can help to find database users.
+
+Mining User Access Patterns (3) - User Session Identification
+The task of session identification is to separate database sessions from a sequence of requests/events.
+The most commonly used session identification method is called timeout. 
+Assuming that the think-time between user sessions is longer than that between the events of a session.  
+This session identification method suffers from the problem that it is difficult to set the time threshold. 
+Statistical language modeling (n-gram model) based session identification method is proposed. 
+Using an information theoretic approach to identify session boundaries dynamically by measuring the change of information in the sequence of requests. 
+Has been demonstrated to be more effective than timeout and two other methods in discovering association rules in a Web mining. 
+The successful use of this method depends on how to select values for some parameters. 
+
+
+
+N-gram models
+Given a sequence of words, what is the next possible word?
+Markov assumption:  the probability of a words depends only on the probability of a limited history.
+n-gram Model: the probability of a word depends on the previous n-1 words, n is called the order of the model
+
+Given a string W with N words, the possibility that it  is spoken is 
+
+
+Data sparsity problem: training data is not big enough to get that much information, unseen sequence get 0 probability. Solution: smoothing and discounting
+
+ Assumption: given a sequence W(W1,…,WN), If W crosses session boundary, P(W) is low, otherwise, P(W) is high.
+  Problem: probability is not a good measurement. Is a probability value 0.05 small or large?
+  Use entropy value instead. The empirical entropy of the model on a sentence W with size N is: -1/N * log2P(W)
+  Entropy is average number of bits per word required to encode test data using this probability model, and an optimal coder.
+  Entropy is usually between 0 and 10. A small probability means a large entropy value, and the sequence may contain boundaries.
+ Theory:  suppose a set of queries for a task that are frequently issued one after another. In this case, the entropy of the sequence is low.  However, when a new query is observed in the sequence that is not relevant to the original task (but in fact indicates a shift to a new task), it causes an increase in the entropy of the sequence.  Such an entropy increase serves as a signal for session boundary detection.
+Session Identification with N-gram Model
+
+  Use a slide window of size n to process event sequence W: W1,…,Wi…….,  For each Wi , assign an entropy value 
+	Value (Wi) = Entropy(Wi-n+1,….Wi-1, Wi)
+      
+Session Identification with N-gram Model(2)
+Entropy value suddenly increases at a session boundary.
+
+The probabilities come from training data. Three kinds of training data/ session identification method exist:
+Supervised learning: training data consists of a set of sessions have been identified. The frequencies of inter-sesession sequence are set to 0.
+Unsupervised learning: training data is un-separated request sequence. Contains both inter-session and intra session frequencies. More sensitive to the model parameters, such as entropy threshold and n-gram order.
+Semi-supervised learning: training data contains part of the boundary points and are thus partially separated  by the boundary points. 
+For supervised learning,  cross-entropy is used to choose parameters for the data set. 
+For unsupervise and semi-supervised learning, a development data set is used to choose the parameters, and applying to the data set.
+Training Data and Probability Estimate
+
+Entropy Evolution Curves
+
+ F-measure : assume the corrected sessions for test data is known and compare the estimated sessions with the corrected sessions. F-measure  is defined as
+   2 * Precision * Recall / (Precision +Recall)
+  Recall is the hit-rate (hit sessions/total_sessions)  and 
+  Precision is the ratio of correct hits to proposed(hit sessions /estimated_sessions).  
+  Higher F-measures means better overall performance.
+ Cross-entropy:  use the n-gram model to compress the estimated session set, if the sessions are accurate, the entropy value is small. The entropy value is called cross-entropy for the test data.  Can only be used for supervised-learning method.
+Performance Measurement metric
+
+Relationship Between F-Measure and Cross Entropy
+F-measure and Cross-entropy has invert relationship
+
+Parameter Selection –threshold value
+Performance of  n-gram method greatly depends on the threshold.
+Automatic method for choosing a threshold is proposed:
+Estimate average session length from training data/development data
+Estimate num. of sessions in test data:length/(average session length) 
+Obtain the value for each point and sort them in decreasing order.
+The value near the position length/(average session length)  is chosen
+
+
+Parameter Selection – n-gram order 
+ An order between 2 and 8 is generally good.
+ The performance with a lower order (from 2 to 5) is better than that with a higher order (from 6 to 8).
+ The best order value is the model with minimal cross-entropy on the test data (for supervised learning) or that with maximal F-measure on the development data (for un-supervised learning or semi-supervised learning)
+
+Performance Comparisons
+Supervised > Semi-Supervised > Unsupervised > Timeout
+
+Mining User Access Patterns (4) - User Session Classification
+
+The task of session clustering is to group session instances to different session groups. The number of groups is unknown, and it is a un-supervised learning procedure.
+A distance-based session clustering algorithm is proposed:
+Consider each session instance as a session group, and calculate the distance between them. 
+Groups are merged according to the intra-group distances, intra-group distances are updated correspondingly.
+The clustering procedure will stop when all intra-group distances are more than a pre-defined distance threshold.
+Distance between two sessions i and j is defined as: distance(i,j)= 1.0 – sim (i,j), where sim(i, j) is the similarity between two sessions
+
+Mining User Access Patterns (4) - User Session Classification Cont.
+Three similarity scores are proposed:
+Coefficient score: treat i and j as un-ordered item set, the score is the fraction of common events between them: 
+			csim(i,j)  = | i  j |/|i  j |
+Alignment score (asim): treat i and j as request sequences, aligns them first, calculates the score based on the aligned sequences.  
+Neighborhood score (nsim): is the common neighbors between i and j. “Two sequences are neighbor if their distance based on the above two scores exceeds certain threshold”
+The overall similarity between i and j is 
+	sim (i,j) = a * csim(i,j) + b* asim(i,j)  + c * nsim(i,j), where  a +b  +c =1.0
+
+Mining User Access Patterns (4) - User Session Classification Cont.
+In sequence alignment, two or more strings are aligned together in order to get the highest similarity score. Gaps may be inserted into a string in order to shift the remaining characters into better matches.
+Two sequence {ABCDD} and {ABED} are aligned as:
+			ABCDD/ABED-
+Treat a session sequence as a piece of programming code. The  code may contain branches (such as if/else) or loops (such as for-loop and while-loop). 
+We assign each match with a score of 2 (A, and B), each branch with a score of 1 (C/E), and each loop with a score of 1 (DD/D).
+To normalize the score, we divide the value with the length of the aligned sessions. The length is defined as 
+2 * (num. of matches + num. of branches + num. of loops)
+
+Mining User Access Patterns (4) - User Session Classification Cont.
+Clustering Algorithms:
+Random sampling N sessions, clustering the sessions into different session groups.
+Assigning the session remaining in the disk to the groups obtained in step 1, creating new group if necessary.
+Question:
+How to choose similarity parameters a, b and c?  The parameters are the weight of the three similarity scores.
+How to choose clustering threshold? depending on the application domain
+How to deal with short session? with some expert knowledge.
+
+Model User Access Patterns (1)
+Task: building user access graph for each session group.
+Markov model based user access graph generation
+Scan all session instances, generate states and state transitions
+Prune states and transitions based on min. support and confidence
+Build state transition diagram
+First-order and second-order pruned-Markov models for session instances <a,b,c>, <a,b,c,b>, <a,b,d>, <a,b,d,b> are 
+
+Model User Access Patterns (2)
+Task: find the relationship between nodes of graph
+Solution: using idea of functional dependency inference
+All node parameters make a virtual database relation R
+All session instances make a instance r of R
+Find function dependencies from relation instance r
+Discovery dependency functions or decision rules
+Prove dependencies and functions with the help of expert
+Extension:
+How to deal with parameters within the same node? 
+How to deal with branch, i.e., some parameters will not appear in a session: assign a “unknown” value to the columns
+How to deal with loop, i.e.,some parameters have multiple values in a session: 1) consider columns that agree on all values in all sessions.  2) consider sequence matching.
+How to deal with query result, i.e., the value of a parameter may be the execution of a query? Hard! Must have the original data of the database.  
+
+Dependency Discovery Example
+col
+row
+  col32_2 is a constant,  col33_1 is an independent variable, col31_1, col32_2 are dependent variables.
+ What is the relationship between the result of  v32 with col33_1?
+ What about variable col30_1? Use high-level graph relationship.
+
+Performance Evalution
+How to measure the accuracy of session clustering and session modeling algorithm?
+Idea:
+Model-based session classification. Given a session instance s, try to classify it into a session group g by using model-based Bayesian classification algorithm. If s and g  has minimal distance, it is a “hit”.
+Model-based request prediction. Given a request sequence (r1,….rn), try to predict the next request r by using model-based prediction algorithm. If we predict the next request correctly, it is a “hit”.
+Use F-measure to measure the performance
+
+Experimental Results
+Mining result for a client/server application:
+12 instances of the application, and 9,344 SQL queries. 
+190 user access events.
+718 user request sequences belong to 21  frequent user access graphs
+Broken q3 into two queries, q2’ and q2’’.   q2’,q3,q4  can be rewrite as:
+  select  count(*) as num, card_id,   
+             contract_last, contract_first
+   from  customer
+   where cust_num=‘1074’
+
+Usage of User Access Patterns
+User access patterns can help to
+optimize SQL query to gain fast execution time. Find the  system bottleneck, i.e., resource-consumed queries and frequently-performed queries. Redesign/optimize them
+tune the database system. Distinguish the step of finding user behaviors with the step of using them. Tuning  database system based on user access patterns is better than analyzing the queries in a workload.
+anticipate and pre-fetch incoming queries. Try to match user request sequence with a user access graph, and predict the next query.
+rewrite queries for caching. Find the relationship between queries, and rewrite a query to answer subsequent queries.
+process queries by using rules. Design a rule-based database gateway, use rules to rewrite, pre-fetch queries.
+find possible data distributions or relationships
+
+SQL-Relay: an Event-driven, Rule-based Database Gateway
+Each incoming query is one kind of  event. Each event associates with a set of pre-defined execution rules.
+SQL-Relay contains a set of standard routine to process a given execution rule.
+Previous query results are cached for answering incoming queries. Two kinds of query cache: global caches and local caches.  Different cache selection and replacement policies are used for different kinds of cache.
+A global rewriting rule aims to rewrite a single query to improve query performance; 
+A pre-fetching rule predicts the next query and pre-fetches the answer according to user request sequence. 
+A local rewriting rule rewrites current query to answer multiple queries.
+
+Related Works
+Workload Characterization
+Clustering database transaction (based on physical resources)
+Discovering and using physical resource reference pattern (disk I/O, buffer pool)
+Predicting and prefetch OLAP queries.
+Query stream  processing
+The idea and algorithms discussed can be used on web-based session identification and clustering. 
+Database cache server and gateway
+DBCache (IBM), TimesTen (TimesTen), Oracle 9i database cache. All caches database tables.
+MySQL has server-side query caches.
+Information Integrator (IBM) allows users to retrieve information from different data sources by using standard query language. It rewrite queries according to certain rule.
+
+References
+Q. Yao, A. An “Using user access patterns for semantic query caching” in DEXA 2003
+Q. Yao, A. An “Characterizing database user’s access patterns” in DEXA 2004
+Q. Yao, A. An “SQL-Relay: an event-driven, rule-based database gateway” in DEXA 2004
+Q. Yao, X. Huang, A. An “Applying language modeling to session identification from database trace Logs”, submitted for publication
+Q. Yao, X. Huang, A. An “ Finding and clustering database user sessions”, submitted for publication.
+I.T. Bowman, K.Salem, ”Optimization of query streams using semantic prefetching”, in SIGMOD 2004.
+X. Huang and F. Peng and A. An and D. Schuurmans,” Dynamic Web Log Session Identification with Statistical Language Models”, Journal of JASIST, Special Issue on Webometrics, 2003.
+
+Conclusion and Future Work
+We propose the idea of user access pattern to represent database user navigation behaviors
+We propose algorithms to cluster SQL queries, identify users and sessions, cluster and model sessions.
+Several approaches of using user access patterns are discussed.
+Future Work:
+Researching on large scale database 
+Extending to web log and applications
+
+
+

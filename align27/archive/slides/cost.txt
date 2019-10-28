@@ -1,0 +1,118 @@
+Cost-based labeling of groups of mass spectra
+SIGMOD Conference 2004
+
+Overview	
+Introduction
+Problem formulation 
+Proposed Algorithms
+Theoretical cost analysis
+Experimental results and discussion
+Comments
+
+
+Introduction 
+Working of Aerosol Time of Flight Mass Spectrometer
+
+Mass Spectrum Labeling
+
+Problem Formulation
+   A mass spectrum can be represented as a normalized vector b, where Σi bi = 1 and bi is the relative signal intensity at m/z value i.
+   The signature of an ion is a vector s, such that Σi si = 1, representing the distribution of its isotopes, i.e., si is the relative abundance of isotopes with m/z value i.
+   A signature library is a set of signatures S = { s1, s2, ...,  sn} where sj is the signature of chemical ion j.
+  If we arrange the n signatures in the signature library in order, the signature library can be represented as a matrix A = [s1, s2, ...,  sn], where the kth column in matrix A presents signature k. The labeling task consists of finding an n-dimensional vector x such that x[j] is the relative abundance of chemical ion j.
+Ax =b, x ≥ 0
+  To account for noise, measurement errors and calibration discrepancies define a distance function D and error bound E, then the solution space of spectrum b  is
+Lb = {a | D(Aa,b) < E and a ≥ 0}
+  The solution can be found using the LP model
+min Σi si  s.t (Aa - b)≤ s and (Aa - b)≤ -s  where a≥0,s ≥0
+
+Solution to the Problem
+The LP model has infinite number of solutions
+  We care about solutions which are significantly different
+  How to deal with continuous infinite space??
+A threshold vector T = { t1, t2, ...,  td} divides each dimension of the search space into d ranges and the index vector I = { <l1, h1>, <l2 ,h2>, ...,<ln ,hn>} 
+The of SINGLE spectrum labeling reduces to subspace searching
+(Zheng Huang et al)
+
+Group Spectrum labeling
+A group of spectra that is collected at a single location over a short time-span is likely be similar.
+Given a group of spectra {bi} we can find a label set {Li} which consist of labels of the form {xi} each of length n
+ Define support(x)  =  |{Li | xi Є  Li }|/| Li |
+Group label : Given a group of spectra B = {bi} and a threshold Min Sup, x is a group label if the support of x w.r.t. B is greater than Min Sup.
+HOW TO SOLVE THIS???
+MINING FREQUENT PATTERNS
+
+Method1: DFS Voting Algorithm
+Depth First Search(subspace S)
+
+	if (¬is feasible(S))
+		RETURN
+	else
+		if (S is a cell) // cell corresponds to the finest granularity
+			output the corresponding label of S
+		else
+			pick dimension(j)
+			split S into a set of subspaces {Si} s.t. each Si is not divisible on 			dimension j
+			for each result subspace Si
+				Depth First Search(Si)
+			end for
+  DFSVoting( Si,C’)
+C = {b|b Є C, S is feasible w.r.t. b}
+|C’|< Min_Sup*w
+DFSVoting(subspace S,set of spectra C)
+
+Method 2: Candidate Generation and Test
+GenTest
+L = {} B0 = {(1 − Min Sup) * w + 1 spectra randomly chosen from B}
+for each b in B0
+	Find Fi, the label set of b
+	L = L U Fi
+	for each label l in Fi
+		l.count++
+for each spectrum b in B − B0
+	for each l in L
+		if l is a label for the b
+		l.count++;
+for each label l in L
+if (l.count > Min Sup * w)
+output l as a solution group label
+
+Cost Analysis
+Estimate the effect of various inputs on the overall cost of the algorithm
+Study the characteristics of the data / input w.r.t to the algorithm
+Notations:
+CSingle Cost of labeling a single spectrum
+        CSingle = d*(n-1)*m
+CVoting Cost of DFSVoting algorithm
+CGenTest Cost of GenTest algorithm
+       CGenTest =   CSingle*(w − t + 1)+(t − 1) * m *((1 − s/w ) *(w − t + 1) + 1)
+       where t = w*Min_Sup
+
+
+
+Algorithm profile
+Algorithm choice depends on the choice of Min_Sup value
+Algorithm choice also depends on s
+
+
+Decision Plot
+The boundary between the two regions corresponds to the intersection points between the two methods in the algorithm profile
+
+System Graph
+
+Results and Discussion
+How close are the derived estimates based on cost metrics to experimental results?
+How good is the cost estimation in terms of deriving the right decision plot?
+
+Results and Discussion
+How good is the theoretically derived decision plot in making decisions regarding algorithm selection
+The differences observed were found to be tolerable
+
+Comments
+Problem formulation in data mining framework
+Evaluation of different algorithms
+Algorithm profiling and cost based optimization 
+Analogy to market basket analysis
+
+
+

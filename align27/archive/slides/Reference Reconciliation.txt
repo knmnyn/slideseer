@@ -1,0 +1,243 @@
+Reference Reconciliation in Complex Information Spaces
+Erinç Gökdeniz
+2004721375
+
+Reference Reconciliation
+Introduction
+Overview
+Reconciliation Algorithm
+Dependency Graph
+Exploiting the Dependency Graph
+Enriching the References
+Enforcing constraints
+Computing Similarity Scores
+Experimantal Results
+Related Work & Conclusions
+
+
+Introduction
+Reference Reconciliation is the problem of different references in a dataset corresponding to the same real-world entity
+Because of mis-spellings,use of abbreviations, different naming conventions, naming variations over time.
+Mainly a matter for data integration concept
+
+Introduction
+Most of the previous work considers, 
+techniques for reconciling references to a single class. 
+the data contains many attributes.
+In practice, 
+Complex Information spaces where instances of multiple classes
+Rich relationships between the instances
+Classes may have only few attributes
+References typically have unknown att. values
+
+
+
+Proposed Reconciliation Algorithm
+Main motivation is Personal Information Management
+Supporting higher level browsing of information on one’s desktop.(PIM)
+Examines data from sources on the desktop(e.g. Mails,files, spreadsheets)
+Rec. Algo. addresses several shortcomings of existing reference reconciliation algorithms that preclude their use in applications such as PIM
+
+
+Personal Information Management
+Extract instances of multiple classes:
+Person, Message, Article, Conference
+Extract associations :
+senderOf, authorOf, publishedIn..
+Also, (aside from PIM)
+Publications
+Online product catalogs 
+involves complex relationships between multiple entities
+
+
+Proposed Reconciliation Algorithm
+Exploit the associations between references to design new methods for reference comparison
+Propogate information between reconciliation decisions to accumulate pos. and neg. evidences
+Enrich references by merging attribute values.
+
+
+Reconciliation Algorithm
+The key ideas of the algorithm :
+Extensive use of context information to provide evidence for reconciliation decisions
+Example : for given 2 references algorithm also considers their co-authors and emails to decide whether to reconcile them
+
+
+
+
+
+Reconciliation Algorithm
+Propagation of information between reconciliation decisions for different pairs of references
+Example : when we decide to reconcile two papers , we obtain additional evidence for reconciling the person references to their authors
+
+
+Reconciliation Algorithm
+Addressing the lack of information in each reference by reference enrichment
+Example : when we reconcile two person references, we gather different representations of the person’s name , different mail addresses and can enlarge the co-author list.
+This enrichment can lead us to another reconciliations.
+
+Problem Definition
+A domain is modelled with a schema
+Schema includes classes with attributes
+Attributes :
+Atomic : Simple type like String, int 
+Associations : whose values are links to other instances.
+
+
+Schema
+
+References
+
+Reconciliation Results
+
+
+Measures of Quality
+Recall 
+Measures the percentage of correctly reconciled pairs of references over all pairs of references that refer to the same entity.
+Precision
+Measures the percentage of correctly reconciled pairs over all reconciled pairs of references
+
+Reconciliation Algorithm Details
+First, costruct the dependency graph that captures the relationships between different reconciliation decisions
+Iteratively re-compute scores that are assigned to reconciliation decision nodes in the graph until a fixed point is reached.
+Finally, compute the transitive closure for the final reconciliation results
+
+Dependency Graph
+We need to compute the similarity for every pair of references of the same class, 
+Therefore, atomic and association attributes’ similarities
+A node in the graph represents the similarity between a pair of references
+An edge represents the dependency between a pair of similarities
+
+Definitions of Graph
+
+
+
+Some Definitions
+We call n an incoming neighbor of m,
+	and m an outgoing neighbor of n  .
+If the similarity of a node n depends only whether the references in the node m are reconciled, then we say m is a boolean-valued neighbor of n
+If the similarity of n depends on the actual similarity value of node m, we call m is a real-valued neighbor of n
+
+
+
+Some Definitions
+If the reconciliation of m’s two references implies that the two references in n should also be reconciled, m is called n’s strong-boolean-valued neighbor.
+
+If the reconciliation of m’s references only increases the similarity score of n, but does not directly imply reconciliation, m is called n’s weak-boolean-valued neighbor.
+e.g..The similarity score of 2 persons will increase given that they have email correspondence with the same person
+
+Graph Construction  Step 1
+
+Graph Construction  Step 2
+
+Exploiting the Dependency Graph
+Algorithm is based on propogating similarity decisions from node to node.
+e.g.. After deciding to reconcile articles a1 and a2 we should reconcile their associated conferences c1 and c2,
+Further, re-computation of the similarities of other papers that mention the conferences c1 and c2 is required
+
+Nodes
+Merged : when a node’s similarity score is above a merge-threshold (it represents reconciled references)
+Active : if a node’s similarity is reconsidered 
+Inactive : the rest.. 
+Initially all nodes representing the similarity between references are marked active 
+The nodes representing the similarity between atomic attribute values are marked merged  or inactive depending on their associated similarity score
+
+
+Nodes
+At a time one active node is selected and its similarity score is recomputed
+If the new similarity score is above merge-threshold ,node is marked as merged
+Otherwise it is marked as inactive
+In addition, all its neighbours with similarity scores below 1 is marked as active.
+
+Exploiting the Dependency Graph
+This algorithm maintains a queue of active nodes containing all reference-similarity nodes
+At every iteration, we compute the similarity score for the top node 
+
+
+Enriching the References
+After merging references r1 and r2, all the attributes of r2 can be considered as those of r1.
+When there is another reference r3, we choose the one with higher similarity.
+Example : connecting all neighbours of n we can remove node n.
+if m gets new incoming neighbours and is not active, then m is inserted at the end of the queue
+
+
+Enforcing Constraints
+In many cases, negative evidences can contribute to the reconciliation process. (e.g. p2 & p9)
+Constraint : is a rule enforcing that two references are quarenteed to be distinct.
+e.g..the authors of one paper are distinct
+Typically domain-dependent
+Non-merge node : The two elements are quarenteed to be different and should never be reconciled
+
+Definitions (for constraints)
+
+Computing Similarity Scores
+Given a node m=(r1,r2), the similarity function for m takes the similarity scores of m’s neighbors as input and computes a score between 0 and 1
+
+The similarity score is sum of 3 components
+Srvcontributed by real-valued incoming neigh.
+Ssbcontributed by strong-boolean-valued neigh.
+Swbcontributed by weak-boolean-valued neigh.
+
+Real-Valued Neighbors
+
+Strong-boolean Neighbors
+
+Weak-boolean Neighbors
+
+Experimantal Results
+Tests on two domains :
+Personal Information Management
+Publication Portal
+Different 4 personal datasets is used
+	Conference and Journals are merged(Venue class)
+Performance is measured by recall, precision and F-measure
+F-measure = 2*prec*recall / prec+recall
+
+Datasets
+
+Experiments
+Proposed Algorithm is DEPGRAPH
+General Reconciliation Approach : INDEPDEC
+INDEPDEC compares person names and emails independently and combines the results for reference similarity without exploiting the dependencies between individual reconciliation decisions.
+
+
+
+Experiments
+DEPGRAPH ,in addition, compares the names with the email accounts,considers the articles authored by the persons, counts the common people appearing in the coauthor or email-contact lists,applies reconciliation propogation and reference enrichment and enforces constraints.
+
+Results
+
+Experiment Results 
+DEPGRAPH obtains higher precision and recall for both person and venue references.
+It improved recall for venue ref. by %18.6
+					for person ref. by %5.4 
+				=======
+Secondly, examine person references
+Dividing dataset into two
+One contains person ref.extracted only from emails(PEmail)
+One contains person ref. extracted from articles
+	(PArticle)
+
+Results
+DEPGRAPH improves recall 
+	by %30.7 on the article datasets
+	by %7.6 on the email datasets
+	by %5.4 on the full datasets
+	
+
+Conclusions & Future Work
+Many applications are based on information spaces that involve multiple classes and rich relationships between instances
+Thus far studies are in the context of reconciling ref. of a single class.
+This paper fills in this gap by proposing a generic framework
+
+
+Conclusions & Future Work
+This framework influences later similarity computation with early reconciliation decisions, and enriches references by instant merging.
+Proposed algorithm obtains high precision and recall on test datasets.
+In the future, 
+An efficient incremental reconciliation approach 
+Learning techniques based on the framework could be considered.
+
+Questions
+???
+
+

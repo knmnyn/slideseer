@@ -1,0 +1,235 @@
+Online Event-driven Subsequence Matching over Financial Data Streams
+Huanmei Wu,	Betty Salzberg, Donghui Zhang
+
+Northeastern University, 
+College of Computer & Information Science
+Presented by : Evangelos Kanoulas
+
+Motivation (1)
+An incoming stream of stock market data
+Analyze it and do
+Trend prediction
+Pattern recognition
+Dynamic clustering of multiple data streams
+Rule discovery
+Subsequence matching is the main component
+
+Motivation (2)
+Subsequence similarity over financial data streams has its unique properties
+
+
+
+
+
+Zigzag shape of piecewise linear representation (PLR)
+Relative position of end points is important
+Price change (amplitude) is more important than time interval
+Price
+time
+S1
+S2
+S3
+
+Outline	
+Motivation
+Data Stream Processing
+Subsequence Matching
+Trend Prediction
+Performance
+Conclusion
+
+Data Stream Processing (1)	Aggregation and Smoothing
+
+Incoming data arrives at any time
+Piecewise Linear Representation requires a unique value for each time interval
+Aggregation of the raw data
+Smoothing of the aggregated values using the  moving average
+
+Data Stream Processing (2)	Segmentation
+PLR may not be in a zig-zag shape
+The end points of the PLR should be points at which the trend changes dramatically
+All other points are considered as noise and should be eliminated
+
+aggregated data stream
+
+Data Stream Processing (3)	%b data stream : the base for linear segmentation
+Why use %b (Bollinger Band Percent)?
+%b is a widely used financial indicator 
+%b has a smoothed moving trend similar to the aggregated data stream
+%b is normalized value, most values are between -1 and 2
+Uniform segmentation criteria
+aggregated data stream
+ %b data stream
+
+Data Stream Processing (4)	Segmentation over %b
+t
+Price (x)
+Sliding Window
+1
+2
+3
+5
+6
+7
+8
+9
+10
+11
+12
+4
+13
+
+In the current sliding window, where Pj(Xj,tj) is the current point, Pi(Xi, ti) is an upper end point if,
+  Xi = max ( X values of the current sliding window )
+  Xi > Xj +  ( where  is the given error threshold )
+  Pi(Xi, ti) is the last one satisfying the above two conditions
+Pi
+Pj
+
+Data Stream Processing (5)	Two Step Pruning
+Filter step on %b streams
+Refine step on the raw sequence stream to eliminate false positives
+
+t4
+t0
+t1
+t2
+   t3
+Agg.  Stream
+%b stream
+
+Outline	
+Motivation
+Data Stream Processing
+Subsequence Matching
+Trend Prediction
+Performance
+Conclusion
+
+Subsequence Similarity (1)	Event-driven subsequence matching
+Identifying a new potential end point triggers a subsequent matching search
+The search algorithm finds subsequences in the historical data similar to a query subsequence
+The query subsequence consists of the most current n end points
+Price
+t
+t5  t6  t7  t8    t9        t10 t11 t12 t13  t14          ……             t37 t38 t39 t40
+1
+2
+3
+4
+
+Subsequence Similarity (2) 	New similarity measure
+		S = {(X1, t1), (X2, t2), …, (Xn, tn)}
+		S' = {(X1', t1'), (X2', t2'), …, (Xn', tn')}
+
+S and S' are similar if they satisfy the following two conditions : 
+The relative position of S and S' end points is the same
+  d(S, S') < , where 
+	d(S, S') =   ( *  ||(Xi+1 - Xi)| - |(Xi+1' - Xi')||
+                   +   *  |(ti+1 - ti) - (ti+1' - ti')|)
+	where , ,   0 are user defined parameters
+
+Subsequence Similarity (3)	Subsequence Permutation
+S = {(X1, t1), (X2, t2), …, (Xn, tn)}
+S’ = { [(X1, t1), (X3, t3), …, (Xn-1, tn-1)], 
+ [(X2, t2), (X4, t4), …, (Xn, tn)] }
+S” = {[(Xi1, ti1), (Xi3, ti3), …, (Xi(n-1), ti(n-1))], 
+    [(Xi2, ti2), (Xi4, ti4), …, (Xin, tin)] }
+Separate upper and lower points
+Sort separately based on X values
+{i1, i3, …, i(n-1), i2, i4, …, in} 
+Get the subsequence permutation
+
+Outline	
+Motivation
+Data Stream Processing
+Subsequence Matching
+Trend Prediction
+Performance
+Conclusion
+
+Trend prediction	Subsequence matching application
+Trend-K at a point p measures the change of the price to the next k points 
+ Three trends: UP, DOWN, NOTREND
+
+Outline	
+Motivation
+Data Stream Processing
+Subsequence Matching
+Trend Prediction
+Performance
+Conclusion
+
+Performance (1)	Similarity measure
+70
+65
+60
+55
+50
+45
+40
+35
+30
+Perm+Amp
+Amp Only
+Perm Only
+Perm+Euc
+Euc Only
+Correctness %
+
+Performance (2)	Event–driven vs. Fixed time periods
+Correctness %
+70
+65
+60
+55
+50
+45
+40
+35
+30
+Event-driven
+FT1
+FT5
+FT10
+FT15
+FT25
+FT30
+FT20
+Relative CPU cost
+100%
+  90%
+  80%
+  70%
+  60%
+  50%
+  40%
+  30%
+  20%
+  10%
+    0%
+Event-driven
+FT1
+FT5
+FT10
+FT15
+FT25
+FT30
+FT20
+
+Outline	
+Motivation
+Data Stream Processing
+Subsequence Similarity
+Trend Prediction
+Performance
+Conclusion
+
+Conclusion
+Proposed an online segmentation and pruning algorithm
+Defined an alternative similarity subsequence measure
+Introduced an event-driven online similarity matching algorithm
+Achieved 70% correct predictions using real world data 
+
+
+
