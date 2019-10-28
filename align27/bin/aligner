@@ -1,0 +1,508 @@
+#!/usr/local/bin/perl -w
+#!/specproj2/rpnlpir/tools/languages/programming/perl/bin//perl
+# -*- cperl -*-
+=head1 NAME
+
+aligner
+
+=head1 SYNOPSYS
+
+ CVS:$Id$
+
+=head1 DESCRIPTION
+
+=head1 HISTORY
+
+ ORIGIN: created from templateApp.pl version 3.4 by Min-Yen Kan <kanmy@comp.nus.edu.sg>
+
+ CVS:$Log$
+
+=cut
+
+require 5.0;
+use Getopt::Std;
+use strict 'vars';
+# use diagnostics;
+
+### USER customizable section
+my $tmpfile .= $0; $tmpfile =~ s/[\.\/]//g;
+$tmpfile .= $$ . time;
+if ($tmpfile =~ /^([-\@\w.]+)$/) { $tmpfile = $1; }		      # untaint tmpfile variable
+$tmpfile = "/tmp/" . $tmpfile;
+$0 =~ /([^\/]+)$/; my $progname = $1;
+my $outputVersion = "1.1";
+my $debug = 0;
+my $defaultAlpha = 1;
+my $distBase = 1;
+my $defaultTopSlides = 5;
+my $alignerLoc = "aligner";
+### END user customizable section
+
+### Ctrl-C handler
+sub quitHandler {
+  print STDERR "\n# $progname fatal\t\tReceived a 'SIGINT'\n# $progname - exiting cleanly\n";
+  exit;
+}
+
+### HELP Sub-procedure
+sub Help {
+  print STDERR "usage: $progname -h\t\t\t\t[invokes help]\n";
+  print STDERR "       $progname -v\t\t\t\t[invokes version]\n";
+  print STDERR "       $progname [-bdiqV] [-a <frac>] <cosine.tsv file>\n";
+  print STDERR "Options:\n";
+  print STDERR "\t-a <frac>\tSet Alpha (default: $defaultAlpha)\n";
+  print STDERR "\t-b\tdo Baseline\n";
+  print STDERR "\t-d\tDebug\n";
+  print STDERR "\t-i\tInteractive Mode\n";
+  print STDERR "\t-V\tdon't do Viterbi\n";
+  print STDERR "\t-q\tQuiet Mode (don't echo license)\n";
+  print STDERR "\n";
+  print STDERR "Will accept input on STDIN as a single file.\n";
+  print STDERR "\n";
+}
+
+### VERSION Sub-procedure
+sub Version {
+  if (system ("perldoc $0")) {
+    die "Need \"perldoc\" in PATH to print version information";
+  }
+  exit;
+}
+
+sub License {
+  print STDERR "# Copyright 2005 \251 by Min-Yen Kan\n";
+}
+
+###
+### MAIN program
+###
+
+my $cmdLine = $0 . " " . join (" ", @ARGV);
+if ($#ARGV == -1) { 		        # invoked with no arguments, possible error in execution? 
+  print STDERR "# $progname info\t\tNo arguments detected, waiting for input on command line.\n";  
+  print STDERR "# $progname info\t\tIf you need help, stop this program and reinvoke with \"-h\".\n";
+}
+
+$SIG{'INT'} = 'quitHandler';
+getopts ('a:bdhqvVi');
+
+our ($opt_q, $opt_b, $opt_i, $opt_V, $opt_v, $opt_h, $opt_d, $opt_a);
+# use (!defined $opt_X) for options with arguments
+if (!$opt_q) { License(); }		# call License, if asked for
+if ($opt_v) { Version(); exit(0); }	# call Version, if asked for
+if ($opt_h) { Help(); exit (0); }	# call help, if asked for
+if ($opt_d) { $debug = 1; }
+my $alpha = (defined $opt_a) ? $opt_a : $defaultAlpha;
+
+## standardize input stream (either STDIN on first arg on command line)
+my $fh;
+my $filename;
+if ($filename = shift) {
+ NEWFILE:
+  if (!(-e $filename)) { die "# $progname crash\t\tFile \"$filename\" doesn't exist"; }
+  open (*IF, $filename) || die "# $progname crash\t\tCan't open \"$filename\"";
+  $fh = "IF";
+} else {
+  $filename = "<STDIN>";
+  $fh = "STDIN";
+}
+
+# load matrix
+my @v = ();
+my $i = 0;
+while (<$fh>) {
+  if (/^\#/) { next; }			# skip comments
+  elsif (/^\s+$/) { next; }		# skip blank lines
+  else {
+    chop;
+    @{$v[$i]} = split (/\t/,$_);
+    if ($debug) { print "$i.\t" . scalar (@{$v[$i]}) . "\n"; }
+    $i++;
+  }
+}
+close ($fh);
+if ($debug) { print "\n\n"; }
+
+# load slide text
+my $slidename = $filename;
+$slidename =~ s/cosine\.tsv/slide.tsv/;
+my @slides = ();
+open (IF, $slidename) || die "# $progname fatal\tCouldn't open slide file";
+@slides = <IF>;
+close (IF);
+
+# load key text
+my $keyname = $filename;
+$keyname =~ s/cosine\.tsv/key.tsv/;
+my @keys = ();
+open (IF, $keyname) || die "# $progname fatal\tCouldn't open key file";
+@keys = <IF>;
+close (IF);
+my @ans = ();
+processKeys ();
+
+# load para text
+my $paraname = $filename;
+$paraname =~ s/cosine\.tsv/para.tsv/;
+my @paras = ();
+open (IF, $paraname) || die "# $progname fatal\tCouldn't open paragraph text file";
+@paras = <IF>;
+close (IF);
+
+my @nils = ();
+
+doDP(\@v);
+#if ($opt_b) { doBaseline (\@v,STDOUT); }
+#else { interactive(); }
+
+############################################################
+
+###
+### END of main program
+###
+
+sub doBaseline {
+  my $vRef = shift @_;
+  my $fh = shift @_;
+  my @v = @{$vRef};
+
+  my $sumCorrect = 0;
+  my $sumNilCorrect = 0;
+  for (my $i = 0; $i <= $#v; $i++) {
+    my $max = 0;
+    my $index = 0;
+    for (my $j = 0; $j <= $#{$v[0]}; $j++) {
+      if ($v[$i][$j] > $max) { 
+	$max = $v[$i][$j];
+	$index = $j;
+      }
+    }
+    my $key = $keys[$i+1];
+    $key =~ /^\d+\t(.+)/;
+    my $ans = $1;
+    my $correct = (defined $ans[$i+1]{$index}) ? 1 : 0;
+    my $nilCorrect = (defined $nils[$i]) ?
+	($nils[$i] eq "na") ?
+	($ans =~ /^na/) ? 1 : 0 : $correct : $correct;
+    print $fh "Slide: ", $i+1, "\tPara: $index\t";
+    print $fh "Correct: $correct/$nilCorrect\t";
+    print $fh "Cos: $max\t";
+    if (defined $nils[$i]) { print $fh "Nils: $nils[$i]\t"; }
+    print $fh "Key: $ans";
+    print $fh "\n";
+    $sumCorrect += $correct;
+    $sumNilCorrect += $nilCorrect;
+  }
+  print $fh "Sum correct: $sumCorrect (" . ($sumCorrect/($#v+1)*100) . "%)\n";
+  print $fh "Sum nilCorrect: $sumNilCorrect (" . ($sumNilCorrect/($#v+1)*100) . "%)\n";
+}
+
+sub doDP {
+    my $vRef = shift @_;
+    my $alpha = shift @_;
+    my @v = @{$vRef};
+
+    my @s = @v;							    # copy v matrix
+    my @q = ();
+    my $sumCorrect = 0;
+    my $sumNilCorrect = 0;
+    my $numPara = $#{$v[0]} + 1;	    # get number of slides from row[0]
+    for (my $i = 1; $i <= $#s; $i++) { 
+	for (my $j = 1; $j < $numPara; $j++) {
+	    my $skip = ($s[$i][$j-1] > $s[$i-1][$j-1]) ? $s[$i][$j-1] : $s[$i-1][$j-1];
+	    my $jump = ($s[$i][$j]+$s[$i-1][$j-1]);
+	    if ($jump > $skip) {
+		$s[$i][$j] = $jump;
+		$q[$i][$j] = "jump";
+#		print "[$j $i $s[$i][$j] $q[$i][$j]]";
+	    } else {
+		$s[$i][$j] = $skip;
+		$q[$i][$j] = ($s[$i][$j-1] > $s[$i-1][$j]) ? "down" : "right";
+#		print "[$j $i $s[$i][$j] $q[$i][$j]]";
+	    }
+	}
+    }
+
+    # trace steps back
+    my $y = $#{$v[0]};
+    my $x = $#v;
+    my @align = ();
+    while ($x > 0 && $y > 0) {
+	if ($q[$x][$y] eq "jump") { 
+	    $align[$x] = $y;
+	    $x--; 
+	    $y--; 
+	} elsif ($q[$x][$y] eq "right") { 
+	    $align[$x] = "na";
+	    $x--;
+	} elsif ($q[$x][$y] eq "down") {
+	    $y--; 
+	}
+    }
+    $align[0] = 0;
+
+    for (my $i = 0; $i <=$#align; $i++) {
+	my $key = $keys[$i+1];
+	$key =~ /^\d+\t(.+)/;
+	my $ans = $1;
+	my $correct = (defined $ans[$i+1]{$align[$i]}) ? 1 : 0;
+	my $nilCorrect = (defined $nils[$i]) ?
+	    ($nils[$i] eq "na") ?
+	    ($ans =~ /^na/) ? 1 : 0 : $correct : $correct;
+	print "Slide: ", $i+1, "\tPara: $align[$i]\t";
+	print "Correct: $correct/$nilCorrect\t";
+	if ($align[$i] ne "na") { print "Cos: $v[$i][$align[$i]]\t"; } else { print "Cos: 0\t"; }
+	if (defined $nils[$i]) { print "Nils: $nils[$i]\t"; }
+	print "Key: $ans";
+	print "\n";
+	$sumCorrect += $correct;
+	$sumNilCorrect += $nilCorrect;
+    }
+    print "Sum correct: $sumCorrect (" . ($sumCorrect/($#v+1)*100) . "%)\n";
+    print "Sum nilCorrect: $sumNilCorrect (" . ($sumNilCorrect/($#v+1)*100) . "%)\n";
+}
+
+# BUG assumes we have at least 3 slides in the presentation
+sub doViterbi {
+  my $vRef = shift @_;
+  my $alpha = shift @_;
+  my @v = @{$vRef};
+  my $sumCorrect = 0;
+  my $numPara = $#{$v[0]} + 1;	    # get number of slides from row[0]
+  print STDERR "Viterbi (with alpha = $alpha)\n";
+
+  # init vector, out dim is start, inner dim is end
+  # initially start with first (0th row)
+  my @C1 = ();					       # cosine values
+  my @c1 = ();					       # cosine values
+  my @d1 = ();					     # distance values
+  my @s1 = ();				    # sum of cosine + distance
+  my @p1 = ();							# path
+  
+  if ($debug) { print "Num Para: $numPara\n"; }
+  for (my $i = 0; $i < $numPara; $i++) {
+    $C1[$i] = $v[0][$i] . " ";			   # cosine similarity
+    $c1[$i] = $v[0][$i];			   # cosine similarity
+    $d1[$i] = 0;				     # proximity bonus
+    $s1[$i] = $c1[$i] + $d1[$i];		       # calculate sum
+    $p1[$i] = "$i ";
+  }
+
+  ## for each remaining slide, do one iter viterbi
+  for (my $k = 1; $k <= $#v; $k++) { 
+
+    ## construct new vector, representing optimal path from slide 1 to k
+    my @C2 = ();				  # cosine value array
+    my @c2 = ();				       # cosine values
+    my @d2 = ();				     # distance values
+    my @s2 = ();			    # sum of cosine + distance
+    my @p2 = ();					 # path so far
+
+    if ($debug) { print "investigating best way from 0->$k\n"; }
+    # for each vector entry to be calculated in *2 matrices
+    for (my $i = 0; $i < $numPara; $i++) {     
+
+      # cycle through entries in *1 to find best link
+      my $index = 0;
+      my $utility = 0;
+      my $cc = $v[$k][$i];		# cosine of slide k and para i
+
+      for (my $j = 0; $j < $numPara; $j++) { 
+	# current variables
+	# my $cd = $distBase/(1+abs($j-$i));	  # update proximity bonus sum
+	my $cd = 1 - (abs($j-$i)/$numPara);
+
+	my $cs = ($alpha * (($cc + $c1[$j]) / ($k+1)));
+	$cs += ((1 - $alpha) * (($cd + $d1[$j]) / $k)); 
+
+	if ($cs > $utility) {
+	  if ($debug) { print "path to $i looks good via $j: [$k] $cs = ($alpha * $cc) + (1 - $alpha) * $cd | $d1[$j]\n"; }
+	  $utility = $cs;			      # update utility
+	  $index = $j;					# update index
+	}
+      }		# now, have found optimal path as going through $index
+
+      # update vector entry
+      $c2[$i] = $c1[$index] + $v[$k][$i];
+
+      # $d2[$i] = $d1[$index] + ($distBase/(1+abs($index-$i)));
+      $d2[$i] = $d1[$index] + 1 - (abs($index-$i)/$numPara);
+      $s2[$i] = ($alpha * ($c2[$i] / ($k+1))) + 
+	((1 - $alpha) * ($d2[$i] / $k)); 
+      $p2[$i] = $p1[$index] . $i . " ";
+      $C2[$i] = $C1[$index] . $cc . " ";
+      if ($debug) { print "best (using $i" . "th slide as end): $index, C:$c2[$i],D:$d2[$i]\n"; }
+    }
+
+    my $index = 0;
+    my $utility = 0;
+
+    for (my $i = 0; $i < $numPara; $i++) {     
+      if ($c2[$i] > $utility) {
+	$utility = $c2[$i];			      # update utility
+	$index = $i;					# update index
+      }
+    }
+
+    if ($k == $#v || $debug) {
+      print STDERR "best path: 0 to $k is [$p2[$index]] (C:$c2[$index],D:$d2[$index],S:$s2[$index])\n"; 
+      my @align = split (" ",$p2[$index]);
+      my @cosines = split (" ",$C2[$index]);
+      for (my $l = 0; $l <= $#align; $l++) {
+	my $key  = $keys[$l+1];
+	chomp $key;
+	$key =~ /^\d+\t(.+)/;
+	my $ans = $1;
+	my $correct = (defined $ans[$l+1]{$align[$l]}) ? 1 : 0;
+	$sumCorrect += $correct;
+	print "Slide: ", $l+1, "\tPara: ", $align[$l], "\tCorrect: $correct\tCos: ", $cosines[$l], "\tKey: $ans\n";
+      }
+    }
+
+    # copy back
+    for (my $i = 0; $i < $numPara; $i++) {     
+      $C1[$i] = $C2[$i];
+      $c1[$i] = $c2[$i];
+      $d1[$i] = $d2[$i];
+      $s1[$i] = $s2[$i];
+      $p1[$i] = $p2[$i];
+    }
+  }
+
+  print "Sum correct: $sumCorrect (", ($sumCorrect/($#v+1)*100), "%)\n";
+}
+
+sub interactive {
+    print $0 . "> ";
+    while (<STDIN>) {
+    chomp;
+    my @arg = split (/\t/,$_);
+    if (!defined $arg[0]) { next; }
+    if ($arg[0] eq "exit" ||
+	$arg[0] eq "quit" ||
+	$arg[0] eq "q") { exit; }
+    elsif ($arg[0] eq "h" ||
+	   $arg[0] eq "?" ||
+	   $arg[0] eq "help") { 
+      print <<END;
+$0 HELP FOR INTERACTIVE MODE
+
+all commands and arguments are separated by tabs
+
+v	run viterbi with alpha=arg1
+b	run baseline
+c	run edit distance
+d	set debug to arg1
+k	see answer key for slide arg1
+p	see para text for slide arg1 [to arg2]
+S	show [arg2] best paras for slide arg1 [default: arg2 = $defaultTopSlides]
+s	see slide text for slide arg1 [to arg2]
+=	show cosine sim value for slide arg1, para arg2
+n	run nil classifier with leave one out cross-validation
+
+h	this screen
+help
+?
+
+q	exit interactive mode and finish program
+quit
+exit
+END
+    }
+    elsif ($arg[0] eq "=") { print "slide $arg[1] aligned to para $arg[2] = $v[$arg[1]-1][$arg[2]]\n"; }
+    elsif ($arg[0] eq "b") { doBaseline(\@v, STDOUT); }
+    elsif ($arg[0] eq "d") { $debug = $arg[1]; print "Debug set to $arg[1]\n"; }
+    elsif ($arg[0] eq "k") { print "answer key $arg[1] (", scalar(keys %{$ans[$arg[1]]}), "): $keys[$arg[1]]\n"; }
+    elsif ($arg[0] eq "n") { 
+      if (!defined $arg[1]) { $arg[1] = 20; }
+      $filename =~ /([^\/]+)$/;	# get names
+      my $pre = $`;
+      my $post = $1;
+      $post =~ /^([^\.]+)(.+)/;
+      my $base = $1;
+      $post = $2;
+
+      my $buf = "";
+      if ($pre eq "") { $pre = "."; }
+      opendir(DIR, $pre) || die "#$0 fatal\tCan't open/read directory \"$pre\"!";
+      my @input = grep { !/$base.cosine.tsv/ } grep { /cosine.tsv/ } readdir(DIR);
+      close (DIR);
+
+      # run machine learner
+      $buf = join (" $pre",@input);
+      print "nilClassifier -n $arg[1] $pre$buf\n";
+      system ("nilClassifier -n $arg[1] $pre$buf");
+      print "nilClassifier -t $filename \n";
+      open (IF, "nilClassifier -t $filename|") || die;
+      my $line = 0;
+      while (<IF>) {
+	chop;
+	my @fields = split (/ /,$_);
+	$nils[$line] = ($fields[2] > 0) ? "normal" : "na";
+	$line++;
+      }
+      close (IF);
+    }
+    elsif ($arg[0] eq "p") { if (defined $arg[2]) {
+      for (my $k = $arg[1]; $k <= $arg[2]; $k++) {
+	print "para $k: $paras[$k]"; 
+      }
+    } else {
+      print "para $arg[1]: $paras[$arg[1]]\n"; 
+    } }
+    elsif ($arg[0] eq "S") { 
+	if (defined $arg[2]) { bestPara($arg[1],$arg[2]); } else { bestPara($arg[1]); }
+    }
+    elsif ($arg[0] eq "c") { 
+	doDP(\@v);
+    }
+    elsif ($arg[0] eq "s") { if (defined $arg[2]) {
+      for (my $k = $arg[1]; $k <= $arg[2]; $k++) {
+	print "slide $k: $slides[$k]"; 
+    }
+			     
+    } else {
+      print "slide $arg[1]: $slides[$arg[1]]\n"; 
+    } }
+    elsif ($arg[0] eq "v") { 
+	if (defined $arg[1]) { doViterbi(\@v,$arg[1]); }
+	else { print "need alpha arg\n"; }
+    }
+    else {
+      print "unknown command.\n";
+    }
+    print $0 . "> ";
+  }
+}
+
+# stores answers in ans array
+sub processKeys {
+  for (my $i = 1; $i <= $#keys; $i++) {
+    $keys[$i] =~ /\d+\t([^\t]+)/;
+    my $ans = $1;
+    chomp $ans;
+    my @answers = split (/;/,$ans);
+
+    # save answer into hash table
+    foreach my $n (@answers) { $ans[$i]{$n}++; }
+  }
+}
+
+sub bestPara {
+    my $s = shift @_;
+    my $max = shift @_;
+    my $buf = "";
+
+    if (!defined $max) { $max = $defaultTopSlides; }
+    $max--;							    # one less
+    my @vv = @{$v[$s]};
+    @vv = sort {$b <=> $a} @vv;
+    for (my $i = 0; $i <= $max; $i++) {
+	for (my $j = 0; $j <= $#{$v[$s]}; $j++) {
+	    if ($v[$s][$j] == $vv[$i]) { $buf .= "$j"; }
+	}
+	$buf .= "($vv[$i]) ";
+    }
+    chop $buf;
+    print "Best paras: $buf\n";
+}

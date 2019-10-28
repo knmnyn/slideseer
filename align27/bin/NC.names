@@ -1,0 +1,11 @@
+normal,na.
+simScore: continuous.
+numTokens: continuous.
+ratioPunct: continuous.
+ratioCapWords: continuous.
+ratioVars: continuous.
+words: text.
+firstFive: text.
+diffBefore: continuous.
+diffAfter: continuous.
+diffSum: continuous.

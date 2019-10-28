@@ -1,0 +1,316 @@
+#!/usr/local/bin/perl -w
+#!/specproj2/rpnlpir/tools/languages/programming/perl/bin//perl -w
+# -*- cperl -*-
+=head1 NAME
+
+nilClassifier
+
+=head1 SYNOPSYS
+
+ RCS:$Id$
+
+=head1 DESCRIPTION
+
+=head1 HISTORY
+
+ ORIGIN: created from templateApp.pl version 3.4 by Min-Yen Kan <kanmy@comp.nus.edu.sg>
+
+ RCS:$Log$
+
+=cut
+
+require 5.0;
+use Getopt::Std;
+use strict 'vars';
+# use diagnostics;
+
+### USER customizable section
+my $tmpfile .= $0; $tmpfile =~ s/[\.\/]//g;
+$tmpfile .= $$ . time;
+if ($tmpfile =~ /^([-\@\w.]+)$/) { $tmpfile = $1; }		      # untaint tmpfile variable
+$tmpfile = "/tmp/" . $tmpfile;
+$0 =~ /([^\/]+)$/; my $progname = $1;
+my $outputVersion = "1.0";
+my $debug = 0;
+my $defaultStemFilename = "NC";
+my $defaultRounds = 300;
+my $boostexterLoc = "boostexter";
+my $alignerLoc = "aligner";
+### END user customizable section
+
+### Ctrl-C handler
+sub quitHandler {
+  print STDERR "\n# $progname fatal\t\tReceived a 'SIGINT'\n# $progname - exiting cleanly\n";
+  exit;
+}
+
+### HELP Sub-procedure
+sub Help {
+  print STDERR "usage: $progname -h\t\t\t\t[invokes help]\n";
+  print STDERR "       $progname -v\t\t\t\t[invokes version]\n";
+  print STDERR "       $progname [-dqt] [-n <num>] [-S <stem>] filename(s)...\n";
+  print STDERR "Options:\n";
+  print STDERR "\t-d\tDebug Mode\n";
+  print STDERR "\t-n <num>\tRounds of boosting (default: $defaultRounds)\n";
+  print STDERR "\t-q\tQuiet Mode (don't echo license)\n";
+  print STDERR "\t-t\tTest (default is to train model)\n";
+  print STDERR "\t-S <stem>\tStem filename (default: $defaultStemFilename)\n";
+  print STDERR "\n";
+  print STDERR "Will accept input on STDIN as a single file.\n";
+  print STDERR "\n";
+}
+
+### VERSION Sub-procedure
+sub Version {
+  if (system ("perldoc $0")) {
+    die "Need \"perldoc\" in PATH to print version information";
+  }
+  exit;
+}
+
+sub License {
+  print STDERR "# Copyright 2005 \251 by Min-Yen Kan\n";
+}
+
+###
+### MAIN program
+###
+
+my $cmdLine = $0 . " " . join (" ", @ARGV);
+if ($#ARGV == -1) { 		        # invoked with no arguments, possible error in execution? 
+  print STDERR "# $progname info\t\tNo arguments detected, waiting for input on command line.\n";  
+  print STDERR "# $progname info\t\tIf you need help, stop this program and reinvoke with \"-h\".\n";
+}
+
+$SIG{'INT'} = 'quitHandler';
+getopts ('dhn:qS:tv');
+
+our ($opt_d, $opt_n, $opt_q, $opt_S, $opt_t, $opt_v, $opt_h);
+# use (!defined $opt_X) for options with arguments
+if (!$opt_q) { License(); }		# call License, if asked for
+if ($opt_v) { Version(); exit(0); }	# call Version, if asked for
+if ($opt_h) { Help(); exit (0); }	# call help, if asked for
+if ($opt_d) { $debug = 1; }
+my $mode = ($opt_t) ? "TEST" : "TRAIN";
+if (!defined $opt_n) { $opt_n = $defaultRounds; }
+if (!defined $opt_S) { $opt_S = $defaultStemFilename; }
+
+createNamesFile(); 
+
+my $testFile = "";
+if ($mode eq "TEST") { 
+  $testFile = "$opt_S.test";
+  open (OF, ">$opt_S.test") || die "$0 fatal\tCan't open test file for writing!"; 
+} else {
+  open (OF, ">$opt_S.data") || die "$0 fatal\tCan't open data file for writing!"; 
+}  
+
+## standardize input stream (either STDIN on first arg on command line)
+my $fh;
+my $filename;
+if ($filename = shift) {
+ NEWFILE:
+  if (!(-e $filename)) { die "# $progname crash\t\tFile \"$filename\" doesn't exist"; }
+  open (*IF, $filename) || die "# $progname crash\t\tCan't open \"$filename\"";
+  $fh = "IF";
+} else {
+  $filename = "<STDIN>";
+  $fh = "STDIN";
+}
+if ($debug) { print "# $0 info\tProcessing $filename...\n"; }
+
+# load matrix
+my @v = ();
+my $i = 0;
+while (<$fh>) {
+  if (/^\#/) { next; }			# skip comments
+  elsif (/^\s+$/) { next; }		# skip blank lines
+  else {
+    chop;
+    @{$v[$i]} = split (/\t/,$_);
+    if ($debug) { print "$i.\t" . scalar (@{$v[$i]}) . "\n"; }
+    $i++;
+  }
+}
+close ($fh);
+if ($debug) { print "\n\n"; }
+
+# load key text
+my $keyname = $filename;
+$keyname =~ s/cosine\.tsv/key.tsv/;
+my @keys = ();
+open (IF, $keyname) || die "# $progname fatal\tCan't open \"$keyname\"\n";;
+@keys = <IF>;
+close (IF);
+my @ans = ();
+my @answers = ();
+processKeys ();
+
+if ($debug) { print "# $0 info\tread in " . (scalar (@ans)-1) . " answers from $keyname\n"; }
+
+# load slide text
+my $slidename = $filename;
+$slidename =~ s/cosine\.tsv/slide.tsv/;
+my @slides = ();
+open (IF, $slidename) || die;
+@slides = <IF>;
+close (IF);
+
+# generate and load alignment data
+if ($debug) { print "$alignerLoc -b $filename > $opt_S.alignRun"; }
+system ("$alignerLoc -b $filename > $opt_S.alignRun");
+my @alignLines = ();
+open (IF, "$opt_S.alignRun");
+@alignLines = <IF>;
+pop @alignLines;
+for (my $i = 0; $i <= $#alignLines; $i++) {
+    chop $alignLines[$i];
+    my @fields = split (/\t/,$alignLines[$i]);
+    $fields[1] =~ s/Para: //g;
+    $alignLines[$i] = $fields[1];
+    # print "$i\t$alignLines[$i] $slides[$i]\n";
+}
+
+close (IF);
+
+if ($debug) { print "# $0 info\tread in " . scalar (@slides) . " slides from $slidename\n"; }
+
+if ($mode eq "TRAIN") {
+    if ($debug) { print "# $0 info\trun in training mode\n"; }
+    
+    processSlides();
+    
+    if ($filename = shift) {	# iterate over all files specified
+	goto NEWFILE;
+    }
+    
+    close (OF);  # done with creating main data files
+    
+    # now ask boostexter to create hypothesis
+    if ($debug) { 
+	print STDERR "$0 info\tRunning \"$boostexterLoc -n $opt_n -S $opt_S\"\n"; 
+    }
+    system ("$boostexterLoc -n $opt_n -S $opt_S"); # || die "$0 fatal\tProblem running machine learner!";
+} elsif ($mode eq "TEST") {
+    processSlides(); 
+    
+    if ($filename = shift) {	# iterate over all files specified
+	goto NEWFILE;
+    }
+    
+    close (OF);  # done with creating main data files
+    # now ask boostexter to classify
+    if ($debug) {
+	print STDERR "$0 info\tRunning \"$boostexterLoc -C -S $opt_S < $testFile\""; 
+	open (IF, "$boostexterLoc -o -C -S $opt_S < $testFile|") || die;
+    }
+    else { open (IF, "$boostexterLoc -C -S $opt_S < $testFile|") || die; }
+    while (<IF>) {
+	print $_;
+    }
+    close (IF);
+}
+
+###
+### END of main program
+###
+
+# stores answers in ans array
+sub processKeys {
+  for (my $i = 1; $i <= $#keys; $i++) {
+    $keys[$i] =~ /\d+\t([^\t]+)/;
+    my $ans = $1;
+    my @answers = split (/;/,$ans);
+
+    # save answer into hash table
+    foreach my $n (@answers) { $ans[$i]{$n}++; }
+  }
+}
+
+sub maxCosine {
+  my $s = shift @_;
+  my $maxCos = 0;
+  for (my $i = 0; $i <= $#{$v[$s]}; $i++) {
+    if ($v[$s][$i] > $maxCos) { $maxCos = $v[$s][$i]; }
+  }
+  return $maxCos;
+}
+
+sub processSlides {
+    for (my $i = 0; $i <= $#slides; $i++) {			# canonicalize
+	my $slide = $slides[$i];
+	my $naFlag = 0;
+
+	if (defined $slide && $slide !~ /^\s*$/) { 
+	    $slide =~ /\t(.*)/;
+	    $slide = $1;
+	    $slide =~ s/\,/ COMMA /g;
+	    $slide =~ s/\./ DOT /g;
+	    $slide =~ s/[[:punct:]]/ PUNCT /g;
+	    $slide =~ s/[^\w\s]/ ZZ /g;
+	    $slide =~ s/ +/ /g;
+	    $slide =~ s/^ //g;
+	    $slide =~ s/ $//g;
+	    $slides[$i] = $slide;
+	}
+
+	my @slideTokens = split (/ /,$slide);
+	my $numTokens = scalar (@slideTokens);
+	my $ratioPunct = ($numTokens > 0) ? scalar (grep { /(COMMA|DOT|PUNCT)/ } @slideTokens) / $numTokens : 0;
+	my $ratioCapWords = ($numTokens > 0) ? scalar (grep { /[A-Z][a-z]+/ } @slideTokens) / $numTokens : 0;
+	my $ratioVars = ($numTokens > 0) ? scalar (grep { /^(\w|\w\w)$/ } @slideTokens) / $numTokens : 0;
+	my @firstFive = ($numTokens != 0) ? @slideTokens[0..4] : ();
+	my $firstFiveBuf = ($numTokens > 5) ? join (" ", @firstFive) : "";
+
+	my $bef = $alignLines[$i-1];
+	my $aft = $alignLines[$i+1];
+	my $now = $alignLines[$i];
+
+	my $diffBefore = (defined $alignLines[$i-1] && $alignLines[$i] != 0 && $alignLines[$i-1] != 0) ? $bef - $now : "-100";
+	my $diffAfter = (defined $alignLines[$i+1] && $alignLines[$i] != 0 && $alignLines[$i+1] != 0) ? $now - $aft : "-100";
+	my $diffSum = (defined $alignLines[$i-1] && defined $alignLines[$i+1] && 
+		       $alignLines[$i+1] != 0 && $alignLines[$i] != 0 && $alignLines[$i-1] != 0) ? (2*$now) - $aft - $bef : "-100";
+
+	$slides[$i] = lc ($slides[$i]);
+	$firstFiveBuf = lc ($firstFiveBuf);
+#	print OF "$i,";
+#	print OF int (($i/$#slides)*100), ",";
+	print OF int(maxCosine($i)*100), ",";
+	print OF "$numTokens,";
+	print OF "$ratioPunct,";
+	print OF "$ratioCapWords,";
+	print OF "$ratioVars,";
+	print OF "$slides[$i],";
+	print OF "$firstFiveBuf,";
+	print OF "$diffBefore,";
+	print OF "$diffAfter,";
+	print OF "$diffSum,";
+
+	foreach my $key (keys (%{$ans[$i+1]})) {
+	    if ($key eq "na") { $naFlag = 1; }
+	} 
+
+	# print "$i ($bef,$now,$aft) $diffBefore, $diffAfter => $naFlag\n";
+
+	if ($naFlag == 1) { print OF "na.\n"; } else { print OF "normal.\n"; }
+    }
+}
+
+sub createNamesFile {
+    open (OF, ">$opt_S.names");
+    print OF "normal,na.\n";
+#    print OF "slideNum: continuous.\n";
+#    print OF "slideRatio: continuous.\n";
+    print OF "simScore: continuous.\n";
+    print OF "numTokens: continuous.\n";
+    print OF "ratioPunct: continuous.\n";
+    print OF "ratioCapWords: continuous.\n";
+    print OF "ratioVars: continuous.\n";
+    print OF "words: text.\n";
+    print OF "firstFive: text.\n";
+    print OF "diffBefore: continuous.\n";
+    print OF "diffAfter: continuous.\n";
+    print OF "diffSum: continuous.\n";
+    close (OF);
+    if ($debug) { print STDERR "# $0 info\t\tCreated .names file for learning!\n"; }
+}
