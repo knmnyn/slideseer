@@ -1,0 +1,81 @@
+0	Fast Computation of Database Operations using Graphics Processors Naga K. Govindaraju		Univ. of North Carolina 
+1	Goal Utilize graphics processors for fast computation of common database operations 
+2	Motivation: Fast operations Increasing database sizes Faster processor speeds but low improvement in query execution time Memory stalls Branch mispredictions Resource stalls Eg. Instruction dependency 
+3	Graphics Processors Present in most PCs Designed primarily for fast rendering – games High growth rate  
+4	CPU 
+5	GPU CPU 
+6	Graphics Processors Large computational power  Simple but efficient pipeline design Multiple processing units Programmable Vector Processors 
+7	Graphics Processors Low bandwidth to CPU 
+8	Bandwidth CPU GPU 
+9	Graphics Processors: Design Issues Design database operations avoiding frame buffer readbacks No arbitrary writes Design algorithms avoiding data rearrangements Programmable pipeline has poor branching Design algorithms without branching in programmable pipeline - evaluate branches using fixed function tests  
+10	Related Work Hardware Acceleration for DB operations Vector processors for relational DB operations [Meki and Kambayashi 2000] SIMD instructions for relational DB operations [ Zhou and Ross 2002] GPUs for spatial selections and joins [Sun et al. 2003] General purpose computing using GPUs Presented in rest of course.  
+11	Outline Database Operations on GPUs Implementation & Results Analysis Conclusions 
+12	Outline Database Operations on GPUs Implementation & Results Analysis Conclusions 
+13	Overview Database operations require comparisons Utilize depth test functionality of GPUs for performing comparisons Implements all possible comparisons <, <=, >=, >, ==, !=, ALWAYS, NEVER Utilize stencil test for data validation and storing results of comparison operations 
+14	Basic Operations Basic SQL query  Select   A From T Where C A= attributes or aggregations (SUM, COUNT, MAX etc) T=relational table C= Boolean Combination of Predicates (using operators AND, OR, NOT) 
+15	Outline: Database Operations Predicate Evaluation Boolean Combinations of Predicates Aggregations 
+16	Outline: Database Operations Predicate Evaluation Boolean Combinations of Predicates Aggregations 
+17	Basic Operations Predicates – ai op constant or ai op aj Op is one of <,>,<=,>=,!=, =, TRUE, FALSE Boolean combinations – Conjunctive Normal Form (CNF) expression evaluation Aggregations – COUNT, SUM, MAX, MEDIAN, AVG 
+18	Predicate Evaluation ai op constant (d) Copy the attribute values ai into depth buffer Define the comparison operation using depth test Draw a screen filling quad at depth d 
+19	Screen If ( ai   op  d )	pass fragment Else  	reject fragment ai op d d 
+20	Predicate Evaluation ai op aj Treat as (ai – aj) op 0  Semi-linear queries Defined as linear combination of attribute values compared against a constant Linear combination is computed as a dot product of two vectors Utilize the vector processing capabilities of GPUs 
+21	Data Validation Performed using stencil test Valid stencil values are set to a given value “s” Data values that fail predicate evaluation are set to “zero” 
+22	Outline: Database Operations Predicate Evaluation Boolean Combinations of Predicates Aggregations 
+23	Boolean Combinations Expression provided as a CNF CNF is of form (A1 AND A2 AND … AND Ak) where Ai = (Bi1 OR Bi2 OR … OR Bimi )  CNF does not have NOT operator If CNF has a NOT operator, invert comparison operation to eliminate NOT Eg.  NOT (ai < d) =>  (ai >= d) 
+24	Boolean Combination We will focus on (A1 AND A2) All cases are considered A1 = (TRUE AND A1) If Ei = (A1 AND A2 AND … AND Ai-1 AND Ai),    Ei = (Ei-1 AND Ai)  
+25	A1 AND A2                A1 B21 B22 B23 
+26	A1 AND A2                A1 
+27	A1 AND A2                A1 Stencil value = 0 Stencil value = 1 
+28	A1 AND A2                A1 Stencil = 0 Stencil = 1 B21 Stencil=2 B22 Stencil=2 B23 Stencil=2 
+29	A1 AND A2                A1 Stencil = 0 Stencil = 1 B21 B22 B23 Stencil=2 Stencil=2 Stencil=2 
+30	A1 AND A2 Stencil = 0 Stencil=2 A1 AND B21 Stencil = 2A1 AND B22 Stencil=2 A1 AND B23 
+31	Range Query Compute ai within [low, high] Evaluated as ( ai >= low ) AND ( ai <= high )  
+32	Outline: Database Operations Predicate Evaluation Boolean Combinations of Predicates Aggregations 
+33	Aggregations COUNT, MAX, MIN, SUM, AVG No data rearrangements 
+34	COUNT Use occlusion queries to get pixel pass count Syntax: Begin occlusion query Perform database operation End occlusion query Get count of number of attributes that passed database operation Involves no additional overhead! 
+35	MAX, MIN, MEDIAN We compute Kth-largest number Traditional algorithms require data rearrangements We perform no data rearrangements, no frame buffer readbacks 
+36	K-th Largest Number Say vk  is the k-th largest number How do we generate a number m equal to vk? Without knowing vk’s bit-representation and using comparisons 
+37	Our algorithm Initialize m to 0 Start with the MSB and scan all bits till LSB At each bit, put 1 in the corresponding bit-position of m If m>vk, make that bit 0 Proceed to the next bit 
+38	Example Vk = 11101001 M =  00000000 
+39	Example Vk = 11101001 M =  10000000 M <= Vk 
+40	Example Vk = 11101001 M =  11000000 M <= Vk 
+41	Example Vk = 11101001 M =  11100000 M <= Vk 
+42	Example Vk = 11101001 M =  11110000 M > Vk Make the bit 0   M =  11100000 
+43	Example Vk = 11101001 M =  11101000 M <= Vk 
+44	Example Vk = 11101001 M =  11101100 M > Vk Make this bit 0 M =  11101000 
+45	Example Vk = 11101001 M =  11101010 M > Vk M =  11101000 
+46	Example Vk = 11101001 M =  11101001 M <= Vk 
+47	K-th Largest Number Lemma: Let vk be the k-th largest number. Let count be the number of values >= m If count > (k-1): m<= vk If count <= (k-1): m>vk  Apply the earlier algorithm ensuring that count >(k-1) 
+48	Example Integers ranging from 0 to 255 Represent them in depth buffer Idea – Use depth functions to perform comparisons Use NV_occlusion_query to determine maximum 
+49	Example: Parallel Max S={10,24,37,99,192,200,200,232} Step 1: Draw Quad at 128 S = {10,24,37,99,192,200,200,232} Step 2: Draw Quad at 192 S = {10,24,37,192,200,200,232} Step 3: Draw Quad at 224 S = {10,24,37,192,200,200,232} Step 4: Draw Quad at 240 – No values pass Step 5: Draw Quad at 232 S = {10,24,37,192,200,200,232} Step 6,7,8: Draw Quads at 236,234,233 – No values pass Max is 232 
+50	Parallel Max Use occlusion queries to determine the next stepping value No frame buffer readbacks 
+51	Accumulator, Mean Accumulator - Use sorting algorithm and add all the values Mean – Use accumulator and divide by n Interval range arithmetic Alternative algorithm Use fragment programs – requires very few renderings Use mipmaps [Harris et al. 02], fragment programs [Coombe et al. 03] 
+52	Accumulator Data representation is of form ak 2k + ak-1 2k-1 + … + a0 Sum = sum(ak) 2k+ sum(ak-1) 2k-1+…+sum(a0) Current GPUs support no bit-masking operations 
+53	TestBit Read the data value from texture, say ai F= frac(ai/2k) If F>=0.5, then k-th bit of ai is 1 Set F to alpha value. Alpha test passes a fragment if alpha value>=0.5  
+54	Outline Database Operations on GPUs Implementation & Results Analysis Conclusions 
+55	Implementation Dell Precision Workstation with Dual 2.8GHz Xeon Processor NVIDIA GeForce FX 5900 Ultra GPU 2GB RAM 
+56	Implementation CPU – Intel compiler 7.1 with hyperthreading, multi-threading, SIMD optimizations GPU – NVIDIA Cg Compiler 
+57	Benchmarks TCP/IP database with 1 million records and four attributes Census database with 360K records 
+58	Copy Time 
+59	Predicate Evaluation 
+60	Range Query 
+61	Multi-Attribute Query 
+62	Semi-linear Query 
+63	COUNT Same timings for GPU implementation 
+64	Kth-Largest 
+65	Kth-Largest 
+66	Kth-Largest conditional 
+67	Accumulator 
+68	Outline Database Operations on GPUs Implementation & Results Analysis Conclusions 
+69	Analysis: Issues Precision Copy time Integer arithmetic Depth compare masking Memory management No Branching No random writes 
+70	Analysis: Performance Relative Performance Gain High Performance – Predicate evaluation, multi-attribute queries, semi-linear queries, count Medium Performance – Kth-largest number Low Performance - Accumulator 
+71	High Performance Parallel pixel processing engines Pipelining Early Z-cull Eliminate branch mispredictions 
+72	Medium Performance Parallelism FX 5900 has clock speed 450MHz, 8 pixel processing engines Rendering single 1000x1000 quad takes 0.278ms Rendering 19 such quads take 5.28ms. Observed time is 6.6ms  80% efficiency in parallelism!! 
+73	Low Performance No gain over SIMD based CPU implementation Two main reasons: Lack of integer-arithmetic Clock rate 
+74	Advantages Algorithms progress at GPU growth rate Offload CPU work Fast due to massive parallelism on GPUs Algorithms could be generalized to any geometric shape Eg. Max value within a triangular region 
+75	Advantages Commodity hardware! 
+76	Outline Database Operations on GPUs Implementation & Results Analysis Conclusions 
+77	Conclusions Novel algorithms to perform database operations on GPUs Evaluation of predicates, boolean combinations of predicates, aggregations Algorithms take into account GPU limitations No data rearrangements No frame buffer readbacks 
+78	Conclusions Preliminary comparisons with optimized CPU implementations is promising Discussed possible improvements on GPUs GPU as a useful co-processor 
+79	Future Work Improve performance of many of our algorithms More database operations such as join, sorting, classification and clustering. Queries on spatial and temporal databases 
+80	Acknowledgements Army Research Office National Science Foundation Office of Naval Research Intel Corporation NVIDIA Corporation Jasleen Sahni, UNC UNC GAMMA Group 

@@ -1,0 +1,37 @@
+0	FARMER: Finding Interesting Rule Groups in Microarray Datasets 
+1	Outline Background Motivations Algorithms Performance Studies Conclusions 
+2	Task Mining association rules from dataset.a)  Easy to understandb) Useful for classification What kind of dataset we deal with.. a) Dataset D consists of a set of rows R={r1,r2..rn} b) There exists a set of items I={a,b,c,d…} c) Each row ri consists of a sub set of I,  d) There exists a set of class label C={c1,c2..ck} e) Each row ri contains a class label from C 
+3	Dataset In the microarray (biology) dataset: Each row in the dataset corresponds to a sample Each item value in the dataset corresponds to a distretized gene expression value.  Class labels correspond to category of sample, (cancer / not cancer) 
+4	Association Rule Association rule takes the form of           LHS -> CiLHS is a set of items. Ci is a class label. Support of A: sup(A), the number of rows in dataset containing A. Support of rule r:LHS->Ci,            sup(LHS∪Ci). Confidence of rule r:LHS->Ci,       sup(r)/sup(LHS) 
+5	Example Rule r: {a,e,h} -> C Support(r)=2 Condifence(r)=66% 
+6	General solution Step1: Find all frequently occurred itemsets from dataset D. Step2: Generate rule in the form of itemset -> C. Prune rules that do not have enough support an confidence. 
+7	Previous Algorithms Item enumeration: Search all the frequent itemsets by checking all possible combinations of items.   We can simulate the search process in an item enumeration tree. 
+8	Previous Algorithms Rule generation:  e.g., we get frequent itemset {a,e,h} {a,e,h}->C, sup=2, confidence=66%{a,e,h}->-C, sup=1, confidence=33% 
+9	Microarray data Features of Microarray data A few rows: 100-1000 A large number of items, 10000 The space of all the combinations of items is large 210000. 
+10	Motivations--Challenges Very slow for existing rule mining algorithms Item search space is exponential to the number of item use the idea of row enumeration to design new algorithm The number of association rules are too huge even for a given consequent mine Interesting rule groups 
+11	Definition Row support set: Given a set of items I’, we denote R(I’) as the largest set of rows that contain I. Item support set: Given a set of rows R’, we denote I(R’) as the largest set of items that are common among rows in R’. 
+12	Example I’={a,e,h}, then R(I’)={r2,r3,r4} R’={r2,r3}, then I(R’)={a,e,h} 
+13	FARMER: Rule Group What is rule group?Given a one row dataset: {a, b, c, d, e, Cancer}, 31 rules in the form of LHS  Cancer.  the same row and the same confidence (100%). 1 upper bound and 5 lower bound Rule group: a set of association rules whose LHS itemsets occurs in a same set of rows. Rule group has a unique upper bound.     abcde->Cancer 
+14	FARMER: Interesting Rule Group Consider two rules: abcd  Cancer (confidence 90%) ab  Cancer (confidence 95%).  ab is a better indicator of Cancer than abcd ab  Cancer has a higher confidence and  all rows covering abcd  Cancer must cover ab  Cancer IRG:  Rule Group R is IRG if there exists no other IRG R’ whose upper bound rule r’u is a subset of R’s upper bound ru and confidence(r’u)>confidence(ru) 
+15	IRG Each IRG corresponds to a unique row set R. Each IRG has a unique upper bound rule ru. Given a row set R’, we can get a unique IRG whose upper bound rule is    I(R’) -> Cand whose corresponding row set is    R(I(R’)) 
+16	Example Given row set R’={r2,r3} I(R’)={a,e,h} IRG:  ru=: {a,e,h}->C row set= R(I(R’))=R({a,e,h})={r2,r3,r4} Support(ru)=2Confidence(ru)=66% {a,e}->C, {a,h}->C… 
+17	FARMER: Row Enumeration Search in the space of all combinations of rows. Smaller size 21000. (<<210000) Since each IRG -> a unique rowseteach rowset -> a unique IRG We can get all IRG by row enumeration 
+18	Row Enumeration Tree 
+19	General Pruning method Estimate upper bound for pruning Minimum support Minimum confidence Minimum chi square 
+20	IRG and Association Rules From IRG, we can get the entire set of association rules found by any other item enumeration rule mining algorithms. Any association rule found in those algorithm belongs to one of the IRG we found. 
+21	IRG and Association Rules Given an IRG with upper bound ru and lower bound set RL. Any rule r’ withbelongs to IRG and has same support and confidence.  IRG1: ru=: {a,e,h}->C       RL={{e}->C, {h}->C,}{a,e}->C, {a,h}->C…belongs to IRG1 
+22	Lower Bound Lower Bound can be generated from upper bound. Find smallest subset of upper bound that occurs only in the row set of the IRG. Use incremental generate method 
+23	Experimental studies Efficiency of FARMER On five real-life dataset Varying the minimum support Varying the minimum confidence Varying the minimum chi-square Benchmark CHARM ColumnE Usefulness of IRGs Classification 
+24	Dataset Clinical dataset: Prostate Cancer 136 rows, 12600 items Class1 tumor, class2 normal 
+25	Example results--Prostate 
+26	Example results--Prostate 
+27	Classification results 
+28	Conclusions Proposed a novel algorithm to discover interesting rule group for given consequent. Much more efficient than previous item enumeration algorithms when handling microarray dataset. 
+29	Thank You 
+30	Prune Method 1 Removing items that appear in all tuples of transposed DB will not affect results r2 r3 {aeh} r4 has 100% support in the projected table of “r2r3”, therefore branch “r2 r3r4” will be pruned. r2 r3 r4 {aeh} 
+31	Pruning method 2 At a node, if an upper bound rule is detected to be discovered before, we can prune enumeration below this node Because all upper bounds below this node has been discovered before For example, at node 34, if we found that 2 appear in all tuple of TT|34, we can prune node 34  
+32	Pruning method 3--Minimum Support Given X= {x1, x2, …, xn} and TT|X (xn positive class) Loose upper bound:  obtained before scanning transposed table |X|+LU, LU--the number of possible extensions of X in TT|X  Tight upper bound:  obtained after scanning transposed table |X|+TU, TU--the maximal number of possible extension in all tuples of TT|X  
+33	Pruning method 3-- Minimum Confidence Given X= {x1, x2, …, xn} and TT|X rule r Conf(r) = a/(a+b) a – the occurrences of rule r in positive b – the occurrences of rule r in negative Is maximized at largest possible a and smallest b Loose upper bound: The maximal possible a before scanning b at the node X  Tight upper bound The maximal possible a after scanning b at the node X 
+34	Pruning method 3—Minimum chi-square 
+35	Example Figure 1: Example Table 
+36	Lower Bounds Algorithm of discovering lower bounds for an upper bound Incremental method to update Example: An upper bound rule with antecedent A=abcde and two rows (r1 : abcf ) and (r2 : cdeg) Initialize lower bounds {a, b, c, d, e} add “abc”--- new lower {d ,e} Add “cde”--- new lower {ad, bd, ae, be}  
